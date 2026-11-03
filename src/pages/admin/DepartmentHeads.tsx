@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import type { Office } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -53,8 +53,7 @@ export default function DepartmentHeadsPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
       
       const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
         auth: { persistSession: false, autoRefreshToken: false }
