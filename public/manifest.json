@@ -1,0 +1,23 @@
+{
+  "short_name": "PalaGawa",
+  "name": "PalaGawa",
+  "icons": [
+    {
+      "src": "/palagawalogo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/palagawalogo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "display": "standalone",
+  "orientation": "portrait"
+}
