@@ -45,6 +45,7 @@ import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
 import { injectPhotosToDocx } from '@/lib/docxPhotoHelper';
+import { generateDocxSignatoriesTableXml, DEFAULT_SIGNATORIES } from '@/lib/oscaSignatories';
 
 function toRoman(num: number): string {
   const romanMap: [number, string][] = [
@@ -714,6 +715,21 @@ export default function MeetingsMonitor() {
                   ))}
                 </div>
 
+                  {/* Signatories */}
+                  {previewAgenda?.signatories && previewAgenda.signatories.filter((s) => s.enabled && s.name).length > 0 && (
+                    <div className="mt-8 pt-5 grid grid-cols-2 gap-6 text-sm border-t border-zinc-200">
+                      {previewAgenda.signatories
+                        .filter((s) => s.enabled && s.name)
+                        .map((sig) => (
+                          <div key={sig.id}>
+                            <p className="text-zinc-700 mb-8 font-medium">{sig.label}</p>
+                            <p className="font-bold text-zinc-950 uppercase">{sig.name}</p>
+                            <p className="text-xs text-zinc-700">{sig.role}</p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
                   {/* Photo Documentation Section (2x2 Grid) */}
                   {previewAgenda.photos && previewAgenda.photos.length > 0 ? (
                     <div className="mt-10 pt-6 border-t-2 border-zinc-300 print:break-before-page">
@@ -871,7 +887,7 @@ export default function MeetingsMonitor() {
                     ))}
                 </div>
 
-                {/* Photo Documentation Section */}
+{/* Photo Documentation Section */}
                 {previewMinutes.photos && previewMinutes.photos.length > 0 ? (
                   <div className="mt-10 pt-6 border-t-2 border-zinc-300 print:break-before-page">
                     <div className="text-center mb-5">
@@ -908,18 +924,32 @@ export default function MeetingsMonitor() {
                 )}
 
                 {/* Signatures */}
-                <div className="mt-10 pt-6 grid grid-cols-2 gap-6 text-sm">
-                  <div>
-                    <p className="text-zinc-700 mb-8">Prepared by:</p>
-                    <p className="font-bold text-zinc-950 uppercase">{previewMinutes.preparedByName}</p>
-                    <p className="text-xs text-zinc-700">{previewMinutes.preparedByRole}</p>
+                {previewMinutes.signatories && previewMinutes.signatories.filter((s) => s.enabled && s.name).length > 0 ? (
+                  <div className="mt-10 pt-6 grid grid-cols-2 gap-6 text-sm border-t border-zinc-200">
+                    {previewMinutes.signatories
+                      .filter((s) => s.enabled && s.name)
+                      .map((sig) => (
+                        <div key={sig.id}>
+                          <p className="text-zinc-700 mb-8 font-medium">{sig.label}</p>
+                          <p className="font-bold text-zinc-950 uppercase">{sig.name}</p>
+                          <p className="text-xs text-zinc-700">{sig.role}</p>
+                        </div>
+                      ))}
                   </div>
-                  <div>
-                    <p className="text-zinc-700 mb-8">Attested / Noted by:</p>
-                    <p className="font-bold text-zinc-950 uppercase">{previewMinutes.attestedByName}</p>
-                    <p className="text-xs text-zinc-700">{previewMinutes.attestedByRole}</p>
+                ) : (
+                  <div className="mt-10 pt-6 grid grid-cols-2 gap-6 text-sm">
+                    <div>
+                      <p className="text-zinc-700 mb-8">Prepared by:</p>
+                      <p className="font-bold text-zinc-950 uppercase">{previewMinutes.preparedByName}</p>
+                      <p className="text-xs text-zinc-700">{previewMinutes.preparedByRole}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-700 mb-8">Attested / Noted by:</p>
+                      <p className="font-bold text-zinc-950 uppercase">{previewMinutes.attestedByName}</p>
+                      <p className="text-xs text-zinc-700">{previewMinutes.attestedByRole}</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}

@@ -25,7 +25,8 @@ export default function DepartmentHeadsPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [selectedOfficeId, setSelectedOfficeId] = useState('');
-  const [selectedRole, setSelectedRole] = useState<'department_head' | 'oic'>('department_head');
+  const [selectedPosition, setSelectedPosition] = useState<string>('oic');
+  const [filterPosition, setFilterPosition] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const { data: deptHeads, isLoading } = useQuery({
@@ -72,9 +73,22 @@ export default function DepartmentHeadsPage() {
       if (authData.user) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
+        const roleVal: 'department_head' | 'oic' = selectedPosition === 'department_head' ? 'department_head' : 'oic';
+        const positionTitleVal =
+          selectedPosition === 'vice_president'
+            ? 'Vice President'
+            : selectedPosition === 'secretary'
+            ? 'Secretary'
+            : selectedPosition === 'treasurer'
+            ? 'Treasurer'
+            : selectedPosition === 'oic'
+            ? 'Officer-in-Charge (OIC)'
+            : 'Department Head';
+
         const { error: updateError } = await (supabase.from('profiles') as any)
           .update({
-            role: selectedRole,
+            role: roleVal,
+            position_title: positionTitleVal,
             office_id: selectedOfficeId,
             force_password_reset: true,
           })
@@ -96,6 +110,56 @@ export default function DepartmentHeadsPage() {
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create Department Head');
     },
+  });
+
+  
+  const getOfficialBadge = (profile: any) => {
+    const title = (profile.position_title || '').toLowerCase();
+    const role = profile.role;
+    if (title.includes('vice') || title.includes('vp')) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/15 text-purple-600 border border-purple-500/30 uppercase tracking-wider">
+          Vice President
+        </span>
+      );
+    }
+    if (title.includes('secretar')) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 uppercase tracking-wider">
+          Secretary
+        </span>
+      );
+    }
+    if (title.includes('treasur')) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-600 border border-amber-500/30 uppercase tracking-wider">
+          Treasurer
+        </span>
+      );
+    }
+    if (role === 'oic' || title.includes('oic') || title.includes('officer-in-charge') || title.includes('head')) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-600 border border-blue-500/30 uppercase tracking-wider">
+          OIC Head
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
+        Dept Head
+      </span>
+    );
+  };
+
+  const filteredHeads: any[] = (deptHeads || []).filter((profile: any) => {
+    if (filterPosition === 'all') return true;
+    const title = (profile.position_title || '').toLowerCase();
+    if (filterPosition === 'oic') return profile.role === 'oic' && !title.includes('vice') && !title.includes('secretar') && !title.includes('treasur');
+    if (filterPosition === 'vice_president') return title.includes('vice') || title.includes('vp');
+    if (filterPosition === 'secretary') return title.includes('secretar');
+    if (filterPosition === 'treasurer') return title.includes('treasur');
+    if (filterPosition === 'department_head') return profile.role === 'department_head';
+    return true;
   });
 
   return (
@@ -170,13 +234,16 @@ export default function DepartmentHeadsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Position Title</Label>
-                    <Select value={selectedRole} onValueChange={(val: any) => setSelectedRole(val)} required>
+                    <Select value={selectedPosition} onValueChange={(val: string) => setSelectedPosition(val)} required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select position" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="oic">Officer-in-Charge (OIC) / Head</SelectItem>
+                        <SelectItem value="vice_president">OSCA Vice President</SelectItem>
+                        <SelectItem value="secretary">OSCA Secretary</SelectItem>
+                        <SelectItem value="treasurer">OSCA Treasurer</SelectItem>
                         <SelectItem value="department_head">Department Head</SelectItem>
-                        <SelectItem value="oic">Officer-in-Charge (OIC)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -206,6 +273,29 @@ export default function DepartmentHeadsPage() {
         </div>
       </div>
 
+
+      {/* Position Filter Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {[
+          { key: 'all', label: 'All Officials' },
+          { key: 'oic', label: 'OIC Head' },
+          { key: 'vice_president', label: 'Vice President' },
+          { key: 'secretary', label: 'Secretary' },
+          { key: 'treasurer', label: 'Treasurer' },
+          { key: 'department_head', label: 'Dept Heads' },
+        ].map((tab) => (
+          <Button
+            key={tab.key}
+            variant={filterPosition === tab.key ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilterPosition(tab.key)}
+            className="rounded-full text-xs h-7 px-3 shrink-0"
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
       {isLoading ? (
         viewMode === 'grid' ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -225,7 +315,7 @@ export default function DepartmentHeadsPage() {
       ) : deptHeads && deptHeads.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {deptHeads.map((profile) => (
+            {filteredHeads.map((profile) => (
               <Card key={profile.id} className="border-0 shadow-lg shadow-primary/5 bg-card/80 backdrop-blur-xl relative overflow-hidden group flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/10">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 
@@ -278,7 +368,7 @@ export default function DepartmentHeadsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {deptHeads.map((profile) => (
+                  {filteredHeads.map((profile) => (
                     <TableRow key={profile.id} className="hover:bg-muted/30 group">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">

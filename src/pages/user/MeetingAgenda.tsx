@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
@@ -29,6 +30,7 @@ import {
   Upload,
   Sparkles,
   Camera,
+  FileCheck2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Docxtemplater from 'docxtemplater';
@@ -37,6 +39,7 @@ import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
 import { getStoredAgendas, saveStoredAgenda } from '@/lib/meetingStorage';
 import { injectPhotosToDocx, type DocxPhoto } from '@/lib/docxPhotoHelper';
+import { type SignatoryItem, DEFAULT_SIGNATORIES, getSavedSignatories, saveSignatories, generateDocxSignatoriesTableXml } from '@/lib/oscaSignatories';
 import { compressImageFile, sliceGridImage } from '@/lib/imageCompression';
 
 export interface SubAgendaItem {
@@ -65,6 +68,7 @@ export interface SavedAgendaRecord {
   date: string;
   title: string;
   sections: AgendaSection[];
+  signatories?: SignatoryItem[];
   photos?: AgendaPhoto[];
 }
 
@@ -167,6 +171,7 @@ export default function MeetingAgenda() {
   );
 
   const [sections, setSections] = useState<AgendaSection[]>(DEFAULT_OSCA_SECTIONS);
+  const [signatories, setSignatories] = useState<SignatoryItem[]>(getSavedSignatories);
   const [photos, setPhotos] = useState<AgendaPhoto[]>([]);
   const [showPhotosInReport, setShowPhotosInReport] = useState(true);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
@@ -191,6 +196,7 @@ export default function MeetingAgenda() {
         if (draft.centerName) setCenterName(draft.centerName);
         if (draft.locationName) setLocationName(draft.locationName);
         if (draft.sections && Array.isArray(draft.sections)) setSections(draft.sections);
+        if (draft.signatories && Array.isArray(draft.signatories)) setSignatories(draft.signatories);
         if (draft.photos && Array.isArray(draft.photos)) setPhotos(draft.photos);
         if (typeof draft.showPhotosInReport === 'boolean') setShowPhotosInReport(draft.showPhotosInReport);
       }
@@ -209,6 +215,7 @@ export default function MeetingAgenda() {
         centerName,
         locationName,
         sections,
+        signatories,
         photos,
         showPhotosInReport,
       };
@@ -216,7 +223,7 @@ export default function MeetingAgenda() {
     } catch (e) {
       // Ignore quota errors
     }
-  }, [meetingDate, meetingTitle, associationName, centerName, locationName, sections, photos, showPhotosInReport]);
+  }, [meetingDate, meetingTitle, associationName, centerName, locationName, sections, signatories, photos, showPhotosInReport]);
 
   // Section manipulation helpers
   const handleAddSection = () => {
@@ -306,6 +313,45 @@ export default function MeetingAgenda() {
     }
   };
 
+
+  // Signatory handlers
+  const handleToggleSignatory = (id: string, enabled: boolean) => {
+    const updated = signatories.map((s) => (s.id === id ? { ...s, enabled } : s));
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleUpdateSignatory = (id: string, field: 'label' | 'name' | 'role', val: string) => {
+    const updated = signatories.map((s) => (s.id === id ? { ...s, [field]: val } : s));
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleAddSignatory = () => {
+    const newSig: SignatoryItem = {
+      id: 'sig-' + Date.now(),
+      enabled: true,
+      label: 'Signatory / Official:',
+      name: '',
+      role: 'OSCA Officer',
+    };
+    const updated = [...signatories, newSig];
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleRemoveSignatory = (id: string) => {
+    const updated = signatories.filter((s) => s.id !== id);
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleResetSignatories = () => {
+    setSignatories(DEFAULT_SIGNATORIES);
+    saveSignatories(DEFAULT_SIGNATORIES);
+    toast.info('Reset signatories to default OSCA Officers');
+  };
+
   // Save current agenda to history
   const handleSaveToHistory = async () => {
     const newRecord: SavedAgendaRecord = {
@@ -314,6 +360,7 @@ export default function MeetingAgenda() {
       date: meetingDate,
       title: meetingTitle,
       sections,
+      signatories,
       photos: showPhotosInReport ? photos : [],
     };
     try {
@@ -330,6 +377,9 @@ export default function MeetingAgenda() {
     setMeetingDate(record.date);
     setMeetingTitle(record.title);
     setSections(record.sections);
+    if (record.signatories && Array.isArray(record.signatories)) {
+      setSignatories(record.signatories);
+    }
     if (record.photos && Array.isArray(record.photos)) {
       setPhotos(record.photos);
       setShowPhotosInReport(record.photos.length > 0);
@@ -426,6 +476,7 @@ export default function MeetingAgenda() {
           date: meetingDate,
           title: meetingTitle,
           sections,
+          signatories,
           photos: mergedPhotos,
         };
         saveStoredAgenda(newRecord).then((updated) => {
@@ -477,6 +528,7 @@ export default function MeetingAgenda() {
         date: meetingDate,
         title: meetingTitle,
         sections,
+        signatories,
         photos: samplePhotos,
       };
       saveStoredAgenda(newRecord).then((updated) => {
@@ -547,6 +599,7 @@ export default function MeetingAgenda() {
         date: meetingDate,
         title: meetingTitle,
         items: payloadItems,
+        signatoriesSection: generateDocxSignatoriesTableXml(signatories),
       });
 
       if (photos.length > 0 && showPhotosInReport) {
@@ -1097,6 +1150,118 @@ export default function MeetingAgenda() {
             </CardContent>
           </Card>
 
+
+          {/* Signatures & Approvals with Tick Buttons */}
+          <Card className="rounded-2xl border bg-card/60 backdrop-blur shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <FileCheck2 className="h-4 w-4 text-primary" />
+                    Signatories &amp; Approvals
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Tick (check) which officers/members will appear in the agenda signatory output.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetSignatories}
+                    className="rounded-xl text-xs h-8"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                    Reset Standard
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAddSignatory}
+                    className="rounded-xl text-xs h-8"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add Signatory
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {signatories.map((sig) => (
+                  <div
+                    key={sig.id}
+                    className={cn(
+                      "p-3.5 rounded-xl border transition-all space-y-3",
+                      sig.enabled
+                        ? "bg-card border-primary/40 shadow-sm ring-1 ring-primary/20"
+                        : "bg-muted/20 border-dashed border-muted text-muted-foreground opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={sig.enabled}
+                          onChange={(e) => handleToggleSignatory(sig.id, e.target.checked)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary cursor-pointer"
+                        />
+                        <span className={cn("text-xs font-bold uppercase tracking-wider", sig.enabled ? "text-primary" : "text-muted-foreground")}>
+                          {sig.enabled ? '✓ Included in Output' : '✕ Hidden from Output'}
+                        </span>
+                      </label>
+
+                      {signatories.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveSignatory(sig.id)}
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          title="Remove signatory"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-medium text-muted-foreground">Signatory Header / Label</Label>
+                      <Input
+                        value={sig.label}
+                        onChange={(e) => handleUpdateSignatory(sig.id, 'label', e.target.value)}
+                        placeholder="e.g. Prepared by: or Attested by:"
+                        className="rounded-lg h-8 text-xs font-semibold"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-medium text-muted-foreground">Officer Full Name</Label>
+                      <Input
+                        value={sig.name}
+                        onChange={(e) => handleUpdateSignatory(sig.id, 'name', e.target.value)}
+                        placeholder="e.g. VENAFLOR P. DIESTRO"
+                        className="rounded-lg h-8 text-xs font-bold uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-medium text-muted-foreground">Position Title / Office</Label>
+                      <Input
+                        value={sig.role}
+                        onChange={(e) => handleUpdateSignatory(sig.id, 'role', e.target.value)}
+                        placeholder="e.g. Secretary, Senior Citizens Association"
+                        className="rounded-lg h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
       )}
 
@@ -1357,6 +1522,20 @@ export default function MeetingAgenda() {
           </div>
 
           
+          
+          {/* Signatories Section - Displays only ticked signatories */}
+          <div className="mt-12 pt-6 grid grid-cols-1 sm:grid-cols-2 gap-8 text-sm md:text-base border-t border-zinc-200/60 print:border-none">
+            {signatories
+              .filter((s) => s.enabled && s.name && s.name.trim().length > 0)
+              .map((sig) => (
+                <div key={sig.id} className="space-y-1">
+                  <p className="text-zinc-700 mb-8 font-medium">{sig.label}</p>
+                  <p className="font-bold text-zinc-950 uppercase tracking-wide">{sig.name}</p>
+                  <p className="text-xs md:text-sm text-zinc-700">{sig.role}</p>
+                </div>
+              ))}
+          </div>
+
           {/* ── Photo Documentation Attachment Section ───────────── */}
           <div id="photo-documentation-preview" className="photo-documentation-section">
             {photos.length === 0 ? (
