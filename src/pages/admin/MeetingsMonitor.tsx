@@ -667,7 +667,7 @@ export default function MeetingsMonitor() {
               >
                 {/* Header with Seals */}
                 <div className="flex items-center justify-between gap-4 pb-2">
-                  <div className="w-16 h-16 shrink-0">
+                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
                     <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 text-center">
@@ -677,7 +677,7 @@ export default function MeetingsMonitor() {
                     <p className="text-xs font-bold text-zinc-800 mt-0.5">Senior Citizens Center</p>
                     <p className="text-xs font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
                   </div>
-                  <div className="w-16 h-16 shrink-0">
+                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
                     <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-full h-full object-contain" />
                   </div>
                 </div>
@@ -797,7 +797,7 @@ export default function MeetingsMonitor() {
               >
                 {/* Header with Seals */}
                 <div className="flex items-center justify-between gap-4 pb-2">
-                  <div className="w-16 h-16 shrink-0">
+                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
                     <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 text-center">
@@ -807,7 +807,7 @@ export default function MeetingsMonitor() {
                     <p className="text-xs font-bold text-zinc-800 mt-0.5">Senior Citizens Center</p>
                     <p className="text-xs font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
                   </div>
-                  <div className="w-16 h-16 shrink-0">
+                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
                     <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-full h-full object-contain" />
                   </div>
                 </div>
