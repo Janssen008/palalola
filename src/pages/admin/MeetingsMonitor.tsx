@@ -836,9 +836,11 @@ export default function MeetingsMonitor() {
                 <div className="mb-6 flex items-start gap-3 text-sm">
                   <span className="font-bold shrink-0">2. Presents in the meeting:</span>
                   <div className="font-bold space-y-0.5">
-                    {previewMinutes.attendees.map((a, i) => (
-                      <p key={i}>{a}</p>
-                    ))}
+                    {(previewMinutes.attendees || [])
+                      .filter((a) => a && typeof a === 'string' && a.trim() !== '' && a !== 'undefined')
+                      .map((a, i) => (
+                        <p key={i}>{a}</p>
+                      ))}
                   </div>
                 </div>
 
@@ -851,16 +853,22 @@ export default function MeetingsMonitor() {
                     </p>
                   </div>
 
-                  {previewMinutes.discussions.map((d) => (
-                    <div key={d.id} className="space-y-1 pt-1">
-                      <h3 className="font-bold text-zinc-950 underline decoration-zinc-400 underline-offset-2">
-                        {d.topicTitle}
-                      </h3>
-                      <div className="text-zinc-900 leading-relaxed text-justify whitespace-pre-line">
-                        {d.topicContent}
+                  {(previewMinutes.discussions || [])
+                    .filter((d) => d && (d.topicTitle || d.topicContent))
+                    .map((d) => (
+                      <div key={d.id} className="space-y-1 pt-1">
+                        {d.topicTitle && d.topicTitle !== 'undefined' && (
+                          <h3 className="font-bold text-zinc-950 underline decoration-zinc-400 underline-offset-2">
+                            {d.topicTitle}
+                          </h3>
+                        )}
+                        {d.topicContent && d.topicContent !== 'undefined' && (
+                          <div className="text-zinc-900 leading-relaxed text-justify whitespace-pre-line">
+                            {d.topicContent}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
 
                 {/* Photo Documentation Section */}

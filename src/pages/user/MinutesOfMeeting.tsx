@@ -187,10 +187,16 @@ export default function MinutesOfMeeting() {
         if (draft.meetingVenueTime) setMeetingVenueTime(draft.meetingVenueTime);
         if (draft.meetingLocation) setMeetingLocation(draft.meetingLocation);
         if (draft.meetingOpening) setMeetingOpening(draft.meetingOpening);
-        if (draft.attendees && Array.isArray(draft.attendees)) setAttendees(draft.attendees);
+        if (draft.attendees && Array.isArray(draft.attendees)) {
+          const cleanAttendees = draft.attendees.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a !== 'undefined');
+          if (cleanAttendees.length > 0) setAttendees(cleanAttendees);
+        }
         if (draft.proceedingsTitle) setProceedingsTitle(draft.proceedingsTitle);
         if (draft.callToOrder) setCallToOrder(draft.callToOrder);
-        if (draft.discussions && Array.isArray(draft.discussions)) setDiscussions(draft.discussions);
+        if (draft.discussions && Array.isArray(draft.discussions)) {
+          const cleanDisc = draft.discussions.filter((d: any) => d && (d.topicTitle || d.topicContent) && d.topicTitle !== 'undefined' && d.topicContent !== 'undefined');
+          if (cleanDisc.length > 0) setDiscussions(cleanDisc);
+        }
         if (draft.preparedByName) setPreparedByName(draft.preparedByName);
         if (draft.preparedByRole) setPreparedByRole(draft.preparedByRole);
         if (draft.attestedByName) setAttestedByName(draft.attestedByName);
@@ -1479,9 +1485,11 @@ export default function MinutesOfMeeting() {
             <div className="flex items-start gap-4">
               <span className="font-bold shrink-0">2. Presents in the meeting:</span>
               <div className="font-bold space-y-0.5">
-                {attendees.map((attendee, i) => (
-                  <p key={i}>{attendee}</p>
-                ))}
+                {(attendees || [])
+                  .filter((a) => a && typeof a === 'string' && a.trim() !== '' && a !== 'undefined')
+                  .map((attendee, i) => (
+                    <p key={i}>{attendee}</p>
+                  ))}
               </div>
             </div>
           </div>
@@ -1497,16 +1505,22 @@ export default function MinutesOfMeeting() {
               </p>
             </div>
 
-            {discussions.map((disc) => (
-              <div key={disc.id} className="space-y-1.5 pt-2">
-                <h3 className="font-bold text-sm md:text-base text-zinc-950 underline decoration-zinc-400 underline-offset-2">
-                  {disc.topicTitle}
-                </h3>
-                <div className="text-sm md:text-base text-zinc-900 leading-relaxed text-justify whitespace-pre-line pl-1">
-                  {disc.topicContent}
+            {(discussions || [])
+              .filter((disc) => disc && (disc.topicTitle || disc.topicContent))
+              .map((disc) => (
+                <div key={disc.id} className="space-y-1.5 pt-2">
+                  {disc.topicTitle && disc.topicTitle !== 'undefined' && (
+                    <h3 className="font-bold text-sm md:text-base text-zinc-950 underline decoration-zinc-400 underline-offset-2">
+                      {disc.topicTitle}
+                    </h3>
+                  )}
+                  {disc.topicContent && disc.topicContent !== 'undefined' && (
+                    <div className="text-sm md:text-base text-zinc-900 leading-relaxed text-justify whitespace-pre-line pl-1">
+                      {disc.topicContent}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
 
           {/* Signatures */}
