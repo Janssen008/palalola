@@ -23,6 +23,7 @@ import DeptDashboard from '@/pages/dept-head/Dashboard';
 import DeptEmployees from '@/pages/dept-head/Employees';
 import DeptTaskLogs from '@/pages/dept-head/TaskLogs';
 import DepartmentHeadsPage from '@/pages/admin/DepartmentHeads';
+import MeetingsMonitor from '@/pages/admin/MeetingsMonitor';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
       { path: 'users', element: <UsersPage /> },
       { path: 'dept-heads', element: <DepartmentHeadsPage /> },
       { path: 'logs', element: <TaskLogsPage /> },
+      { path: 'meetings', element: <MeetingsMonitor /> },
     ],
   },
   {

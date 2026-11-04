@@ -31,6 +31,7 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
+import { getStoredAgendas, saveStoredAgenda } from '@/lib/meetingStorage';
 
 export interface SubAgendaItem {
   id: string;
@@ -159,10 +160,9 @@ export default function MeetingAgenda() {
   // Load draft & history from localStorage on mount
   useEffect(() => {
     try {
-      const savedHistoryStr = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (savedHistoryStr) {
-        setSavedHistory(JSON.parse(savedHistoryStr));
-      }
+      getStoredAgendas().then((list) => {
+        if (list && list.length > 0) setSavedHistory(list);
+      });
 
       const draftStr = localStorage.getItem(LOCAL_CURRENT_KEY);
       if (draftStr) {
@@ -285,21 +285,20 @@ export default function MeetingAgenda() {
   };
 
   // Save current agenda to history
-  const handleSaveToHistory = () => {
+  const handleSaveToHistory = async () => {
     const newRecord: SavedAgendaRecord = {
-      id: `record-${Date.now()}`,
+      id: `agenda-${Date.now()}`,
       savedAt: new Date().toISOString(),
       date: meetingDate,
       title: meetingTitle,
       sections,
     };
-    const updated = [newRecord, ...savedHistory.slice(0, 19)]; // Keep up to 20
-    setSavedHistory(updated);
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-      toast.success('Agenda saved to history!');
+      const updated = await saveStoredAgenda(newRecord);
+      setSavedHistory(updated);
+      toast.success('Agenda saved to database & history!');
     } catch (e) {
-      toast.error('Failed to save to local history');
+      toast.error('Failed to save agenda');
     }
   };
 

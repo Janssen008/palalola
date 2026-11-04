@@ -31,6 +31,7 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
+import { getStoredMinutes, saveStoredMinutes } from '@/lib/meetingStorage';
 
 export interface DiscussionItem {
   id: string;
@@ -164,10 +165,9 @@ export default function MinutesOfMeeting() {
   // Load draft & history from localStorage on mount
   useEffect(() => {
     try {
-      const savedHistoryStr = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (savedHistoryStr) {
-        setSavedHistory(JSON.parse(savedHistoryStr));
-      }
+      getStoredMinutes().then((list) => {
+        if (list && list.length > 0) setSavedHistory(list);
+      });
 
       const draftStr = localStorage.getItem(LOCAL_CURRENT_KEY);
       if (draftStr) {
@@ -305,9 +305,9 @@ export default function MinutesOfMeeting() {
   };
 
   // Save to history
-  const handleSaveToHistory = () => {
+  const handleSaveToHistory = async () => {
     const record: MinutesRecord = {
-      id: `record-${Date.now()}`,
+      id: `minutes-${Date.now()}`,
       savedAt: new Date().toISOString(),
       date: meetingDate,
       subject,
@@ -323,13 +323,12 @@ export default function MinutesOfMeeting() {
       attestedByName,
       attestedByRole,
     };
-    const updated = [record, ...savedHistory.slice(0, 19)];
-    setSavedHistory(updated);
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-      toast.success('Minutes saved to history!');
+      const updated = await saveStoredMinutes(record);
+      setSavedHistory(updated);
+      toast.success('Minutes saved to database & history!');
     } catch (e) {
-      toast.error('Failed to save to local history');
+      toast.error('Failed to save minutes');
     }
   };
 
@@ -1015,3 +1014,4 @@ export default function MinutesOfMeeting() {
     </div>
   );
 }
+

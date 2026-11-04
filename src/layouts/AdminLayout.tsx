@@ -17,6 +17,7 @@ import {
   X,
   Users as UsersIcon,
   Shield,
+  CalendarDays,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettingsModal } from '@/components/ProfileSettingsModal';
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/offices', icon: Building2, label: 'Offices', end: false },
   { to: '/admin/logs', icon: ClipboardList, label: 'Task Logs', end: false },
+  { to: '/admin/meetings', icon: CalendarDays, label: 'Meeting Records', end: false },
   { to: '/admin/users', icon: UsersIcon, label: 'Manage Users', end: false },
   { to: '/admin/dept-heads', icon: Shield, label: 'Department Heads', end: false },
 ];
