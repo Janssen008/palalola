@@ -16,6 +16,7 @@ import {
   X,
   Users as UsersIcon,
   CalendarDays,
+  FileCheck2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettingsModal } from '@/components/ProfileSettingsModal';
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/dept-head/employees', icon: UsersIcon, label: 'My Employees', end: false },
   { to: '/dept-head/logs', icon: ClipboardList, label: 'Task Logs', end: false },
   { to: '/dept-head/agenda', icon: CalendarDays, label: 'Meeting Agenda', end: false },
+  { to: '/dept-head/minutes', icon: FileCheck2, label: 'Minutes of Meeting', end: false },
 ];
 
 export default function DeptHeadLayout() {

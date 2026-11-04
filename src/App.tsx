@@ -16,6 +16,7 @@ import UsersPage from '@/pages/admin/Users';
 import DailyTasks from '@/pages/user/DailyTasks';
 import TaskSummary from '@/pages/user/TaskSummary';
 import MeetingAgenda from '@/pages/user/MeetingAgenda';
+import MinutesOfMeeting from '@/pages/user/MinutesOfMeeting';
 
 import DeptHeadLayout from '@/layouts/DeptHeadLayout';
 import DeptDashboard from '@/pages/dept-head/Dashboard';
@@ -63,6 +64,8 @@ const router = createBrowserRouter([
       { index: true, element: <DailyTasks /> },
       { path: 'summary', element: <TaskSummary /> },
       { path: 'agenda', element: <MeetingAgenda /> },
+      { path: 'minutes', element: <MinutesOfMeeting /> },
+      { path: 'minutes', element: <MinutesOfMeeting /> },
     ],
   },
   {

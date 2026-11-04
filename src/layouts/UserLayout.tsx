@@ -8,6 +8,7 @@ import {
   Sun,
   FileText,
   CalendarDays,
+  FileCheck2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettingsModal } from '@/components/ProfileSettingsModal';
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/user', icon: ClipboardCheck, label: 'Daily Tasks', end: true },
   { to: '/user/summary', icon: FileText, label: 'Task Summary', end: false },
   { to: '/user/agenda', icon: CalendarDays, label: 'Agenda', end: false },
+  { to: '/user/minutes', icon: FileCheck2, label: 'Minutes', end: false },
 ];
 
 const GooeyMetaball = ({ activeIndex, variant = 'mobile' }: { activeIndex: number, variant?: 'desktop' | 'mobile' }) => {
