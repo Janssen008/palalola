@@ -870,15 +870,21 @@ export default function MeetingsMonitor() {
                   </div>
 
                   {(previewMinutes.discussions || [])
-                    .filter((d) => d && (d.topicTitle || d.topicContent))
+                    .filter(
+                      (d) =>
+                        d &&
+                        typeof d === 'object' &&
+                        ((d.topicTitle && d.topicTitle !== 'undefined') ||
+                          (d.topicContent && d.topicContent !== 'undefined'))
+                    )
                     .map((d) => (
                       <div key={d.id} className="space-y-1 pt-1">
-                        {d.topicTitle && d.topicTitle !== 'undefined' && (
+                        {d.topicTitle && d.topicTitle !== 'undefined' && String(d.topicTitle).trim() !== '' && (
                           <h3 className="font-bold text-zinc-950 underline decoration-zinc-400 underline-offset-2">
                             {d.topicTitle}
                           </h3>
                         )}
-                        {d.topicContent && d.topicContent !== 'undefined' && (
+                        {d.topicContent && d.topicContent !== 'undefined' && String(d.topicContent).trim() !== '' && (
                           <div className="text-zinc-900 leading-relaxed text-justify whitespace-pre-line">
                             {d.topicContent}
                           </div>

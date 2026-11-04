@@ -198,7 +198,22 @@ export default function MinutesOfMeeting() {
         if (draft.proceedingsTitle) setProceedingsTitle(draft.proceedingsTitle);
         if (draft.callToOrder) setCallToOrder(draft.callToOrder);
         if (draft.discussions && Array.isArray(draft.discussions)) {
-          const cleanDisc = draft.discussions.filter((d: any) => d && (d.topicTitle || d.topicContent) && d.topicTitle !== 'undefined' && d.topicContent !== 'undefined');
+          const cleanDisc = draft.discussions
+            .filter((d: any) =>
+              d &&
+              typeof d === 'object' &&
+              (d.topicTitle || d.topicContent) &&
+              d.topicTitle !== 'undefined' &&
+              d.topicContent !== 'undefined'
+            )
+            .map((d: any) => ({
+              ...d,
+              topicTitle: d.topicTitle && d.topicTitle !== 'undefined' ? d.topicTitle : '',
+              topicContent: d.topicContent && d.topicContent !== 'undefined' ? d.topicContent : '',
+              listItems: (d.listItems || []).filter(
+                (item: any) => item && item.itemText && item.itemText !== 'undefined' && String(item.itemText).trim() !== ''
+              ),
+            }));
           if (cleanDisc.length > 0) setDiscussions(cleanDisc);
         }
         if (draft.preparedByName) setPreparedByName(draft.preparedByName);
@@ -422,10 +437,32 @@ export default function MinutesOfMeeting() {
     setMeetingVenueTime(record.meetingVenueTime);
     setMeetingLocation(record.meetingLocation);
     setMeetingOpening(record.meetingOpening);
-    setAttendees(record.attendees);
+    setAttendees(
+      (record.attendees || []).filter(
+        (a: any) => a && typeof a === 'string' && a.trim() !== '' && a !== 'undefined'
+      )
+    );
     setProceedingsTitle(record.proceedingsTitle);
     setCallToOrder(record.callToOrder);
-    setDiscussions(record.discussions);
+    setDiscussions(
+      (record.discussions || [])
+        .filter(
+          (d: any) =>
+            d &&
+            typeof d === 'object' &&
+            (d.topicTitle || d.topicContent) &&
+            d.topicTitle !== 'undefined' &&
+            d.topicContent !== 'undefined'
+        )
+        .map((d: any) => ({
+          ...d,
+          topicTitle: d.topicTitle && d.topicTitle !== 'undefined' ? d.topicTitle : '',
+          topicContent: d.topicContent && d.topicContent !== 'undefined' ? d.topicContent : '',
+          listItems: (d.listItems || []).filter(
+            (item: any) => item && item.itemText && item.itemText !== 'undefined' && String(item.itemText).trim() !== ''
+          ),
+        }))
+    );
     setPreparedByName(record.preparedByName);
     setPreparedByRole(record.preparedByRole);
     setAttestedByName(record.attestedByName);
@@ -1630,15 +1667,21 @@ export default function MinutesOfMeeting() {
             </div>
 
             {(discussions || [])
-              .filter((disc) => disc && (disc.topicTitle || disc.topicContent))
+              .filter(
+                (disc) =>
+                  disc &&
+                  typeof disc === 'object' &&
+                  ((disc.topicTitle && disc.topicTitle !== 'undefined') ||
+                    (disc.topicContent && disc.topicContent !== 'undefined'))
+              )
               .map((disc) => (
                 <div key={disc.id} className="space-y-1.5 pt-2">
-                  {disc.topicTitle && disc.topicTitle !== 'undefined' && (
+                  {disc.topicTitle && disc.topicTitle !== 'undefined' && String(disc.topicTitle).trim() !== '' && (
                     <h3 className="font-bold text-sm md:text-base text-zinc-950 underline decoration-zinc-400 underline-offset-2">
                       {disc.topicTitle}
                     </h3>
                   )}
-                  {disc.topicContent && disc.topicContent !== 'undefined' && (
+                  {disc.topicContent && disc.topicContent !== 'undefined' && String(disc.topicContent).trim() !== '' && (
                     <div className="text-sm md:text-base text-zinc-900 leading-relaxed text-justify whitespace-pre-line pl-1">
                       {disc.topicContent}
                     </div>
