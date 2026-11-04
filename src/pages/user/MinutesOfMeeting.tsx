@@ -424,20 +424,47 @@ export default function MinutesOfMeeting() {
       const newPhotos: DocxPhoto[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.type.startsWith('image/')) continue;
-        const compressedUrl = await compressImageFile(file, 1000, 1000, 0.82);
-        newPhotos.push({
-          id: `min-photo-${Date.now()}-${i}`,
-          dataUrl: compressedUrl,
-          caption: '',
-        });
+        const isImg = file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|jfif|heic)$/i.test(file.name);
+        if (!isImg) continue;
+
+        let dataUrl = '';
+        try {
+          dataUrl = await compressImageFile(file, 1000, 1000, 0.85);
+        } catch (compressionErr) {
+          console.warn('Canvas compression failed, falling back to raw dataUrl:', compressionErr);
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+          });
+        }
+
+        if (dataUrl) {
+          newPhotos.push({
+            id: `min-photo-${Date.now()}-${i}`,
+            dataUrl,
+            caption: '',
+          });
+        }
       }
-      setPhotos((prev) => [...prev, ...newPhotos]);
-      setShowPhotosInReport(true);
-      toast.success(`Added ${newPhotos.length} photo(s)`);
+
+      if (newPhotos.length > 0) {
+        setPhotos((prev) => [...prev, ...newPhotos]);
+        setShowPhotosInReport(true);
+        setActiveTab('preview');
+        toast.success(`Added ${newPhotos.length} photo(s)! Showing in preview below.`);
+
+        setTimeout(() => {
+          const el = document.getElementById('photo-documentation-preview');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
+      } else {
+        toast.error('No valid image files found');
+      }
     } catch (err: any) {
       console.error('Photo upload error:', err);
-      toast.error('Failed to process photos');
+      toast.error('Failed to process photos: ' + (err.message || ''));
     } finally {
       setLoadingPhotos(false);
       e.target.value = '';
@@ -461,7 +488,13 @@ export default function MinutesOfMeeting() {
       }));
       setPhotos(samplePhotos);
       setShowPhotosInReport(true);
+      setActiveTab('preview');
       toast.success('Loaded 4 sample meeting photos (2x2 grid)!');
+
+      setTimeout(() => {
+        const el = document.getElementById('photo-documentation-preview');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
     } catch (err: any) {
       console.error('Failed to load sample photos:', err);
       toast.error('Could not load sample photos');
@@ -552,7 +585,12 @@ export default function MinutesOfMeeting() {
   };
 
   const handlePrint = () => {
-    window.print();
+    setActiveTab('preview');
+    setShowPhotosInReport(true);
+    toast.info('Opening print preview...');
+    setTimeout(() => {
+      window.print();
+    }, 250);
   };
 
   return (
@@ -1416,13 +1454,22 @@ export default function MinutesOfMeeting() {
       {/* Print Specific Stylesheet */}
       <style>{`
         @media print {
+          html, body, #root, #root > div, .h-screen, .min-h-screen, main, .overflow-hidden, .overflow-auto {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+          }
           body {
             background: white !important;
             color: black !important;
             margin: 0 !important;
             padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          nav, header, aside, button, .print\\:hidden {
+          nav, header, aside, button, .print\\:hidden, [role="navigation"] {
             display: none !important;
           }
           .printable-minutes-document {
@@ -1432,6 +1479,45 @@ export default function MinutesOfMeeting() {
             margin: 0 !important;
             max-width: 100% !important;
             width: 100% !important;
+            display: block !important;
+          }
+          .photo-documentation-section {
+            display: block !important;
+            page-break-before: always !important;
+            break-before: page !important;
+          }
+          .photo-grid-container {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 16px !important;
+            width: 100% !important;
+          }
+          .photo-item-card {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+          }
+          .photo-img-wrapper {
+            width: 100% !important;
+            height: 230px !important;
+            min-height: 230px !important;
+            max-height: 250px !important;
+            overflow: hidden !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #f4f4f5 !important;
+            border: 1px solid #d4d4d8 !important;
+          }
+          .photo-img-wrapper img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>

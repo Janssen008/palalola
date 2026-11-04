@@ -374,20 +374,48 @@ export default function MeetingAgenda() {
       const newPhotos: AgendaPhoto[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.type.startsWith('image/')) continue;
-        const compressedUrl = await compressImageFile(file, 1000, 1000, 0.82);
-        newPhotos.push({
-          id: `photo-${Date.now()}-${i}`,
-          dataUrl: compressedUrl,
-          caption: '',
-        });
+        // Allow images by mime type or file extension
+        const isImg = file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|jfif|heic)$/i.test(file.name);
+        if (!isImg) continue;
+
+        let dataUrl = '';
+        try {
+          dataUrl = await compressImageFile(file, 1000, 1000, 0.85);
+        } catch (compressionErr) {
+          console.warn('Canvas compression failed, falling back to raw dataUrl:', compressionErr);
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+          });
+        }
+
+        if (dataUrl) {
+          newPhotos.push({
+            id: `photo-${Date.now()}-${i}`,
+            dataUrl,
+            caption: '',
+          });
+        }
       }
-      setPhotos((prev) => [...prev, ...newPhotos]);
-      setShowPhotosInReport(true);
-      toast.success(`Added ${newPhotos.length} photo(s)`);
+
+      if (newPhotos.length > 0) {
+        setPhotos((prev) => [...prev, ...newPhotos]);
+        setShowPhotosInReport(true);
+        setActiveTab('preview');
+        toast.success(`Added ${newPhotos.length} photo(s)! Showing in preview below.`);
+
+        setTimeout(() => {
+          const el = document.getElementById('photo-documentation-preview');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
+      } else {
+        toast.error('No valid image files found');
+      }
     } catch (err: any) {
       console.error('Photo upload error:', err);
-      toast.error('Failed to process photos');
+      toast.error('Failed to process photos: ' + (err.message || ''));
     } finally {
       setLoadingPhotos(false);
       e.target.value = '';
@@ -411,7 +439,13 @@ export default function MeetingAgenda() {
       }));
       setPhotos(samplePhotos);
       setShowPhotosInReport(true);
+      setActiveTab('preview');
       toast.success('Loaded 4 sample meeting photos (2x2 grid)!');
+
+      setTimeout(() => {
+        const el = document.getElementById('photo-documentation-preview');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
     } catch (err: any) {
       console.error('Failed to load sample photos:', err);
       toast.error('Could not load sample photos');
@@ -497,7 +531,12 @@ export default function MeetingAgenda() {
 
   // Direct print
   const handlePrint = () => {
-    window.print();
+    setActiveTab('preview');
+    setShowPhotosInReport(true);
+    toast.info('Opening print preview...');
+    setTimeout(() => {
+      window.print();
+    }, 250);
   };
 
   return (
@@ -1278,50 +1317,62 @@ export default function MeetingAgenda() {
 
           
           {/* ── Photo Documentation Attachment Section ───────────── */}
-          {photos.length === 0 ? (
-            <div className="mt-10 p-6 rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50/90 text-center print:hidden hover:border-purple-400 transition-all shadow-sm">
-              <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 mx-auto flex items-center justify-center mb-2.5">
-                <Camera className="h-6 w-6" />
+          <div id="photo-documentation-preview" className="photo-documentation-section">
+            {photos.length === 0 ? (
+              <div className="mt-10 p-6 rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50/90 text-center print:hidden hover:border-purple-400 transition-all shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 mx-auto flex items-center justify-center mb-2.5">
+                  <Camera className="h-6 w-6" />
+                </div>
+                <h3 className="font-bold text-sm text-zinc-900 font-sans">
+                  Attachment: Photo Documentation (2x2 Grid)
+                </h3>
+                <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto font-sans">
+                  Attach meeting photos to appear in this agenda report. They will be formatted as a 2x2 photo documentation grid in print and Word export.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2.5 mt-4">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow transition-all font-sans">
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Upload Meeting Photos</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleUploadPhotos}
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleLoadSamplePhotos}
+                    disabled={loadingPhotos}
+                    className="rounded-xl h-8 text-xs gap-1.5 font-sans bg-white hover:bg-zinc-100 border-zinc-300"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Load Sample Photos (Template Guide)</span>
+                  </Button>
+                </div>
               </div>
-              <h3 className="font-bold text-sm text-zinc-900 font-sans">
-                Attachment: Photo Documentation (2x2 Grid)
-              </h3>
-              <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto font-sans">
-                Attach meeting photos to appear in this agenda report. They will be formatted as a 2x2 photo documentation grid in print and Word export.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-2.5 mt-4">
-                <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow transition-all font-sans">
-                  <Upload className="h-3.5 w-3.5" />
-                  <span>Upload Meeting Photos</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handleUploadPhotos}
-                  />
-                </label>
+            ) : !showPhotosInReport ? (
+              <div className="mt-8 p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 text-xs flex items-center justify-between gap-3 print:hidden font-sans">
+                <span>{photos.length} photos are attached but currently hidden from the print report.</span>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleLoadSamplePhotos}
-                  disabled={loadingPhotos}
-                  className="rounded-xl h-8 text-xs gap-1.5 font-sans bg-white hover:bg-zinc-100 border-zinc-300"
+                  onClick={() => setShowPhotosInReport(true)}
+                  className="rounded-lg h-7 text-xs bg-white text-amber-900 border-amber-300 hover:bg-amber-100"
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                  <span>Load Sample Photos (Template Guide)</span>
+                  Show Photos in Report
                 </Button>
               </div>
-            </div>
-          ) : (
-            showPhotosInReport && (
-              <div className="mt-12 pt-8 border-t-2 border-zinc-300 print:break-before-page">
+            ) : (
+              <div className="mt-12 pt-8 border-t-2 border-zinc-300 print:mt-6 print:pt-4">
                 {/* Header & Quick Action Toolbar (hidden during print) */}
                 <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-200 print:hidden font-sans">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-xs text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full flex items-center gap-1">
                       <Camera className="h-3.5 w-3.5" />
-                      {photos.length} Documentation Photos (2x2 Grid)
+                      {photos.length} Documentation Photo{photos.length === 1 ? '' : 's'} Attached (2x2 Grid)
                     </span>
                   </div>
 
@@ -1358,19 +1409,23 @@ export default function MeetingAgenda() {
                   </p>
                 </div>
 
-                {/* 2x2 Grid matching the user's guide template */}
-                <div className="grid grid-cols-2 gap-4 md:gap-6">
+                {/* 2x2 Grid matching the user's template */}
+                <div className="photo-grid-container grid grid-cols-2 gap-4 md:gap-6">
                   {photos.map((photo, pIdx) => (
-                    <div key={photo.id} className="flex flex-col items-center">
-                      <div className="w-full aspect-[4/3] bg-zinc-100 rounded-lg overflow-hidden border border-zinc-300 shadow-sm flex items-center justify-center">
+                    <div key={photo.id} className="photo-item-card flex flex-col items-center">
+                      <div
+                        className="photo-img-wrapper w-full aspect-[4/3] min-h-[220px] bg-zinc-100 rounded-lg overflow-hidden border border-zinc-300 shadow-sm flex items-center justify-center"
+                        style={{ minHeight: '220px' }}
+                      >
                         <img
                           src={photo.dataUrl}
                           alt={photo.caption || `Meeting documentation photo ${pIdx + 1}`}
                           className="w-full h-full object-cover"
+                          style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       </div>
                       {photo.caption && (
-                        <p className="text-[11px] md:text-xs text-zinc-700 mt-2 text-center font-serif italic leading-tight px-1">
+                        <p className="photo-caption text-[11px] md:text-xs text-zinc-700 mt-2 text-center font-serif italic leading-tight px-1">
                           {photo.caption}
                         </p>
                       )}
@@ -1378,22 +1433,30 @@ export default function MeetingAgenda() {
                   ))}
                 </div>
               </div>
-            )
-          )}
-
+            )}
+          </div>
         </div>
       </div>
 
       {/* Print Specific Stylesheet */}
       <style>{`
         @media print {
+          html, body, #root, #root > div, .h-screen, .min-h-screen, main, .overflow-hidden, .overflow-auto {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+          }
           body {
             background: white !important;
             color: black !important;
             margin: 0 !important;
             padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          nav, header, aside, button, .print\\:hidden {
+          nav, header, aside, button, .print\\:hidden, [role="navigation"] {
             display: none !important;
           }
           .printable-agenda-document {
@@ -1403,6 +1466,45 @@ export default function MeetingAgenda() {
             margin: 0 !important;
             max-width: 100% !important;
             width: 100% !important;
+            display: block !important;
+          }
+          .photo-documentation-section {
+            display: block !important;
+            page-break-before: always !important;
+            break-before: page !important;
+          }
+          .photo-grid-container {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 16px !important;
+            width: 100% !important;
+          }
+          .photo-item-card {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+          }
+          .photo-img-wrapper {
+            width: 100% !important;
+            height: 230px !important;
+            min-height: 230px !important;
+            max-height: 250px !important;
+            overflow: hidden !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #f4f4f5 !important;
+            border: 1px solid #d4d4d8 !important;
+          }
+          .photo-img-wrapper img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
