@@ -1269,9 +1269,9 @@ export default function MeetingAgenda() {
           style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
         >
           {/* Header with Seals & Central Text */}
-          <div className="flex items-center justify-between gap-4 pb-3">
+          <div className="grid grid-cols-[80px_1fr_80px] items-center gap-4 pb-3">
             {/* Left Seal */}
-            <div className="w-20 h-20 shrink-0 flex items-center justify-center">
+            <div className="w-20 h-20 flex items-center justify-center">
               <img
                 src="/palayan_seal.png"
                 alt="Palayan City Seal"
@@ -1280,7 +1280,7 @@ export default function MeetingAgenda() {
             </div>
 
             {/* Central Headings */}
-            <div className="flex-1 text-center px-2">
+            <div className="text-center px-2">
               <h2 className="font-bold text-base md:text-lg tracking-wide text-zinc-950 leading-tight">
                 {associationName}
               </h2>
@@ -1293,7 +1293,7 @@ export default function MeetingAgenda() {
             </div>
 
             {/* Right Seal */}
-            <div className="w-20 h-20 shrink-0 flex items-center justify-center">
+            <div className="w-20 h-20 flex items-center justify-center">
               <img
                 src="/osca_logo.jpg"
                 alt="OSCA Logo"

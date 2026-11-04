@@ -666,7 +666,7 @@ export default function MeetingsMonitor() {
                 style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
               >
                 {/* Header with Seals */}
-                <div className="flex items-center justify-between gap-4 pb-2">
+                <div className="grid grid-cols-[64px_1fr_64px] items-center gap-4 pb-2">
                   <div className="w-16 h-16 shrink-0 flex items-center justify-center">
                     <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
@@ -796,7 +796,7 @@ export default function MeetingsMonitor() {
                 style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
               >
                 {/* Header with Seals */}
-                <div className="flex items-center justify-between gap-4 pb-2">
+                <div className="grid grid-cols-[64px_1fr_64px] items-center gap-4 pb-2">
                   <div className="w-16 h-16 shrink-0 flex items-center justify-center">
                     <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
