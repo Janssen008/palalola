@@ -671,7 +671,7 @@ export default function MeetingsMonitor() {
                 </div>
 
                   {/* Photo Documentation Section (2x2 Grid) */}
-                  {previewAgenda.photos && previewAgenda.photos.length > 0 && (
+                  {previewAgenda.photos && previewAgenda.photos.length > 0 ? (
                     <div className="mt-10 pt-6 border-t-2 border-zinc-300 print:break-before-page">
                       <div className="text-center mb-5">
                         <h3 className="font-bold text-sm md:text-base tracking-wider text-zinc-950 uppercase font-serif">
@@ -700,6 +700,10 @@ export default function MeetingsMonitor() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  ) : (
+                    <div className="mt-8 p-4 rounded-xl border border-dashed border-zinc-300 text-center text-zinc-400 text-xs">
+                      No photo documentation attached for this record.
                     </div>
                   )}
 
@@ -814,6 +818,42 @@ export default function MeetingsMonitor() {
                     </div>
                   ))}
                 </div>
+
+                {/* Photo Documentation Section */}
+                {previewMinutes.photos && previewMinutes.photos.length > 0 ? (
+                  <div className="mt-10 pt-6 border-t-2 border-zinc-300 print:break-before-page">
+                    <div className="text-center mb-5">
+                      <h3 className="font-bold text-sm md:text-base tracking-wider text-zinc-950 uppercase font-serif">
+                        ATTACHMENT: PHOTO DOCUMENTATION
+                      </h3>
+                      <p className="text-xs text-zinc-600 font-serif italic mt-0.5">
+                        Documentation of meeting attendees and proceedings
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {previewMinutes.photos.map((photo, pIdx) => (
+                        <div key={(photo as any).id || pIdx} className="flex flex-col items-center">
+                          <div className="w-full aspect-[4/3] bg-zinc-100 rounded-lg overflow-hidden border border-zinc-300 shadow-sm flex items-center justify-center">
+                            <img
+                              src={photo.dataUrl}
+                              alt={(photo as any).caption || `Photo ${pIdx + 1}`}
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          {(photo as any).caption && (
+                            <p className="text-[10px] md:text-xs text-zinc-700 mt-1.5 text-center font-serif italic leading-tight px-1">
+                              {(photo as any).caption}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-8 p-4 rounded-xl border border-dashed border-zinc-300 text-center text-zinc-400 text-xs">
+                    No photo documentation attached for this record.
+                  </div>
+                )}
 
                 {/* Signatures */}
                 <div className="mt-10 pt-6 grid grid-cols-2 gap-6 text-sm">
