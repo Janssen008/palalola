@@ -547,10 +547,6 @@ export default function MinutesOfMeeting() {
         listItems: [],
       }));
 
-      if (photos.length > 0 && showPhotosInReport) {
-        injectPhotosToDocx(doc.getZip(), photos);
-      }
-
       doc.render({
         date: meetingDate,
         subject,
@@ -566,6 +562,10 @@ export default function MinutesOfMeeting() {
         attestedByName,
         attestedByRole,
       });
+
+      if (photos.length > 0 && showPhotosInReport) {
+        injectPhotosToDocx(doc.getZip(), photos);
+      }
 
       const out = doc.getZip().generate({
         type: 'blob',
@@ -683,6 +683,22 @@ export default function MinutesOfMeeting() {
             <Eye className="h-4 w-4" />
             Document Preview
           </Button>
+
+          <Button
+            variant={activeTab === 'photos' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('photos')}
+            className="rounded-xl gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700"
+          >
+            <Camera className="h-4 w-4" />
+            <span>Attach Photos</span>
+            {photos.length > 0 && (
+              <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                {photos.length}
+              </span>
+            )}
+          </Button>
+
           <Button
             variant={activeTab === 'editor' ? 'default' : 'ghost'}
             size="sm"
@@ -1448,6 +1464,127 @@ export default function MinutesOfMeeting() {
               <p className="text-xs md:text-sm text-zinc-700">{attestedByRole}</p>
             </div>
           </div>
+
+          {/* ── Photo Documentation Attachment Section ───────────── */}
+          <div id="photo-documentation-preview" className="photo-documentation-section">
+            {photos.length === 0 ? (
+              <div className="mt-12 p-6 rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50/90 text-center print:hidden hover:border-purple-400 transition-all shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 mx-auto flex items-center justify-center mb-2.5">
+                  <Camera className="h-6 w-6" />
+                </div>
+                <h3 className="font-bold text-sm text-zinc-900 font-sans">
+                  Attachment: Photo Documentation (2x2 Grid)
+                </h3>
+                <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto font-sans">
+                  Attach meeting photos to appear in this minutes report. They will be formatted as a 2x2 photo documentation grid in print and Word export.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2.5 mt-4">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow transition-all font-sans">
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Upload Meeting Photos</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleUploadPhotos}
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleLoadSamplePhotos}
+                    disabled={loadingPhotos}
+                    className="rounded-xl h-8 text-xs gap-1.5 font-sans bg-white hover:bg-zinc-100 border-zinc-300"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Load Sample Photos (Template Guide)</span>
+                  </Button>
+                </div>
+              </div>
+            ) : !showPhotosInReport ? (
+              <div className="mt-8 p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 text-xs flex items-center justify-between gap-3 print:hidden font-sans">
+                <span>{photos.length} photos are attached but currently hidden from the print report.</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowPhotosInReport(true)}
+                  className="rounded-lg h-7 text-xs bg-white text-amber-900 border-amber-300 hover:bg-amber-100"
+                >
+                  Show Photos in Report
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-14 pt-8 border-t-2 border-zinc-300 print:mt-6 print:pt-4">
+                {/* Header & Quick Action Toolbar (hidden during print) */}
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-200 print:hidden font-sans">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <Camera className="h-3.5 w-3.5" />
+                      {photos.length} Documentation Photo{photos.length === 1 ? '' : 's'} Attached (2x2 Grid)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActiveTab('photos')}
+                      className="h-7 px-2.5 text-xs rounded-lg gap-1 border-purple-300 text-purple-700 hover:bg-purple-50"
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Manage / Edit Captions
+                    </Button>
+                    <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800 transition-colors">
+                      <Upload className="h-3 w-3" />
+                      Add More
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleUploadPhotos}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="text-center mb-6">
+                  <h3 className="font-bold text-base md:text-lg tracking-wider text-zinc-950 uppercase font-serif">
+                    ATTACHMENT: PHOTO DOCUMENTATION
+                  </h3>
+                  <p className="text-xs text-zinc-600 font-serif italic mt-0.5">
+                    Documentation of meeting attendees, proceedings, and discussions
+                  </p>
+                </div>
+
+                {/* 2x2 Grid matching the user's template */}
+                <div className="photo-grid-container grid grid-cols-2 gap-4 md:gap-6">
+                  {photos.map((photo, pIdx) => (
+                    <div key={photo.id} className="photo-item-card flex flex-col items-center">
+                      <div
+                        className="photo-img-wrapper w-full aspect-[4/3] min-h-[220px] bg-zinc-100 rounded-lg overflow-hidden border border-zinc-300 shadow-sm flex items-center justify-center"
+                        style={{ minHeight: '220px' }}
+                      >
+                        <img
+                          src={photo.dataUrl}
+                          alt={photo.caption || `Meeting documentation photo ${pIdx + 1}`}
+                          className="w-full h-full object-cover"
+                          style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+                      {photo.caption && (
+                        <p className="photo-caption text-[11px] md:text-xs text-zinc-700 mt-2 text-center font-serif italic leading-tight px-1">
+                          {photo.caption}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
 
