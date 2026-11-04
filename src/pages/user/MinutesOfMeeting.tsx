@@ -1422,8 +1422,8 @@ export default function MinutesOfMeeting() {
           style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
         >
           {/* Header with Seals & Central Text */}
-          <div className="grid grid-cols-[80px_1fr_80px] items-center gap-4 pb-3">
-            <div className="w-20 h-20 flex items-center justify-center">
+          <div className="grid grid-cols-[104px_1fr_104px] items-center gap-4 pb-1">
+            <div className="w-[104px] h-[104px] flex items-center justify-center">
               <img
                 src="/palayan_seal.png"
                 alt="Palayan City Seal"
@@ -1443,7 +1443,7 @@ export default function MinutesOfMeeting() {
               </p>
             </div>
 
-            <div className="w-20 h-20 flex items-center justify-center">
+            <div className="w-[104px] h-[104px] flex items-center justify-center">
               <img
                 src="/osca_logo.jpg"
                 alt="OSCA Logo"
@@ -1454,7 +1454,7 @@ export default function MinutesOfMeeting() {
 
           {/* Brown / Gold Divider Line */}
           <div
-            className="w-full h-[2.5px] my-3"
+            className="w-full h-[2.5px] mt-1 mb-4"
             style={{ backgroundColor: '#823b0b' }}
           />
 

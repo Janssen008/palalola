@@ -666,8 +666,8 @@ export default function MeetingsMonitor() {
                 style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
               >
                 {/* Header with Seals */}
-                <div className="grid grid-cols-[64px_1fr_64px] items-center gap-4 pb-2">
-                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
+                <div className="grid grid-cols-[88px_1fr_88px] items-center gap-4 pb-1">
+                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
                     <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 text-center">
@@ -677,12 +677,12 @@ export default function MeetingsMonitor() {
                     <p className="text-xs font-bold text-zinc-800 mt-0.5">Senior Citizens Center</p>
                     <p className="text-xs font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
                   </div>
-                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
+                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
                     <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-full h-full object-contain" />
                   </div>
                 </div>
 
-                <div className="w-full h-[2px] my-3" style={{ backgroundColor: '#823b0b' }} />
+                <div className="w-full h-[2px] mt-1 mb-3" style={{ backgroundColor: '#823b0b' }} />
 
                 <div className="text-right mt-4 mb-6 text-sm font-bold text-zinc-950">
                   {previewAgenda.date}
@@ -796,8 +796,8 @@ export default function MeetingsMonitor() {
                 style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
               >
                 {/* Header with Seals */}
-                <div className="grid grid-cols-[64px_1fr_64px] items-center gap-4 pb-2">
-                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
+                <div className="grid grid-cols-[88px_1fr_88px] items-center gap-4 pb-1">
+                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
                     <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 text-center">
@@ -807,12 +807,12 @@ export default function MeetingsMonitor() {
                     <p className="text-xs font-bold text-zinc-800 mt-0.5">Senior Citizens Center</p>
                     <p className="text-xs font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
                   </div>
-                  <div className="w-16 h-16 shrink-0 flex items-center justify-center">
+                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
                     <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-full h-full object-contain" />
                   </div>
                 </div>
 
-                <div className="w-full h-[2px] my-3" style={{ backgroundColor: '#823b0b' }} />
+                <div className="w-full h-[2px] mt-1 mb-3" style={{ backgroundColor: '#823b0b' }} />
 
                 <div className="text-right mt-4 mb-4 text-sm font-bold text-zinc-950">
                   {previewMinutes.date}
