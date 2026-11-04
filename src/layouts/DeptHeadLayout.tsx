@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   X,
   Users as UsersIcon,
+  CalendarDays,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettingsModal } from '@/components/ProfileSettingsModal';
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/dept-head', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/dept-head/employees', icon: UsersIcon, label: 'My Employees', end: false },
   { to: '/dept-head/logs', icon: ClipboardList, label: 'Task Logs', end: false },
+  { to: '/dept-head/agenda', icon: CalendarDays, label: 'Meeting Agenda', end: false },
 ];
 
 export default function DeptHeadLayout() {

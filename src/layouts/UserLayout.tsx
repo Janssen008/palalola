@@ -7,6 +7,7 @@ import {
   Moon,
   Sun,
   FileText,
+  CalendarDays,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettingsModal } from '@/components/ProfileSettingsModal';
@@ -17,6 +18,7 @@ import gsap from 'gsap';
 const navItems = [
   { to: '/user', icon: ClipboardCheck, label: 'Daily Tasks', end: true },
   { to: '/user/summary', icon: FileText, label: 'Task Summary', end: false },
+  { to: '/user/agenda', icon: CalendarDays, label: 'Agenda', end: false },
 ];
 
 const GooeyMetaball = ({ activeIndex, variant = 'mobile' }: { activeIndex: number, variant?: 'desktop' | 'mobile' }) => {

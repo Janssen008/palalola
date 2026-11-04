@@ -15,6 +15,7 @@ import TaskLogsPage from '@/pages/admin/TaskLogs';
 import UsersPage from '@/pages/admin/Users';
 import DailyTasks from '@/pages/user/DailyTasks';
 import TaskSummary from '@/pages/user/TaskSummary';
+import MeetingAgenda from '@/pages/user/MeetingAgenda';
 
 import DeptHeadLayout from '@/layouts/DeptHeadLayout';
 import DeptDashboard from '@/pages/dept-head/Dashboard';
@@ -61,6 +62,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DailyTasks /> },
       { path: 'summary', element: <TaskSummary /> },
+      { path: 'agenda', element: <MeetingAgenda /> },
     ],
   },
   {
@@ -74,6 +76,7 @@ const router = createBrowserRouter([
       { index: true, element: <DeptDashboard /> },
       { path: 'employees', element: <DeptEmployees /> },
       { path: 'logs', element: <DeptTaskLogs /> },
+      { path: 'agenda', element: <MeetingAgenda /> },
     ],
   },
   {
