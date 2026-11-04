@@ -1489,6 +1489,10 @@ export default function MeetingAgenda() {
 
       {/* Print Specific Stylesheet */}
       <style>{`
+        @page {
+          size: 8.5in 13in;
+          margin: 0.75in 0.75in 0.75in 0.75in;
+        }
         @media print {
           html, body, #root, #root > div, .h-screen, .min-h-screen, main, .overflow-hidden, .overflow-auto {
             height: auto !important;
