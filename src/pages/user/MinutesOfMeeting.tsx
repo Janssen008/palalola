@@ -169,7 +169,7 @@ export default function MinutesOfMeeting() {
   const [showPhotosInReport, setShowPhotosInReport] = useState(true);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('preview');
+  const [activeTab, setActiveTab] = useState<'editor' | 'preview' | 'photos'>('preview');
   const [savedHistory, setSavedHistory] = useState<MinutesRecord[]>([]);
 
   // Load draft & history from localStorage on mount
@@ -571,6 +571,19 @@ export default function MinutesOfMeeting() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+
+          <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-colors" title="Attach meeting photos (2x2 grid)">
+            <Camera className="h-4 w-4" />
+            <span>Attach Photos{photos.length > 0 ? ` (${photos.length})` : ''}</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleUploadPhotos}
+            />
+          </label>
+
           <Button
             variant="outline"
             size="sm"
@@ -1119,6 +1132,167 @@ export default function MinutesOfMeeting() {
           </Card>
 
         </div>
+      )}
+
+      
+      {/* ── Photos Tab Content ────────────────────────────────────── */}
+      {activeTab === 'photos' && (
+        <Card className="rounded-2xl border shadow-sm">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+            <div>
+              <div className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-purple-600" />
+                <CardTitle className="text-base font-bold">
+                  Attachment: Photo Documentation (2x2 Grid)
+                </CardTitle>
+              </div>
+              <CardDescription className="text-xs mt-1">
+                Attach photos of the meeting, attendees, and discussions. Displayed as a formal 2x2 grid in preview, print, and Word export.
+              </CardDescription>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={loadingPhotos}
+                onClick={handleLoadSamplePhotos}
+                className="rounded-xl h-8 text-xs gap-1.5 border-dashed hover:border-purple-500"
+                title="Load the 4 meeting photos from the official template"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <span>Load Sample Photos</span>
+              </Button>
+
+              <label className="cursor-pointer inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm gap-1.5">
+                <Upload className="h-3.5 w-3.5" />
+                <span>Upload Photo(s)</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleUploadPhotos}
+                />
+              </label>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-4 pt-4">
+            {photos.length === 0 ? (
+              <div className="text-center py-12 px-4 rounded-xl border border-dashed bg-muted/20">
+                <ImageIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-sm font-semibold text-foreground">No photos attached yet</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                  Click &quot;Load Sample Photos&quot; to test with the 4 photos from the official OSCA meeting, or upload your own meeting photos.
+                </p>
+                <div className="flex items-center justify-center gap-3 mt-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleLoadSamplePhotos}
+                    disabled={loadingPhotos}
+                    className="rounded-xl h-8 text-xs gap-1.5"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                    Load Sample Photos
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">
+                      {photos.length} photo{photos.length === 1 ? '' : 's'} attached
+                    </span>
+                    <span className="text-muted-foreground">• Arranged in 2x2 grid</span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium select-none">
+                      <input
+                        type="checkbox"
+                        checked={showPhotosInReport}
+                        onChange={(e) => setShowPhotosInReport(e.target.checked)}
+                        className="rounded text-purple-600 focus:ring-purple-600 h-4 w-4"
+                      />
+                      <span>Include in Report & Word Export</span>
+                    </label>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearPhotos}
+                      className="h-7 px-2 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-lg"
+                    >
+                      Remove All
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {photos.map((photo, pIdx) => (
+                    <div
+                      key={photo.id}
+                      className="p-3 rounded-xl border bg-card/60 backdrop-blur space-y-2.5 relative group"
+                    >
+                      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-black/5 border">
+                        <img
+                          src={photo.dataUrl}
+                          alt={photo.caption || `Photo ${pIdx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          #{pIdx + 1}
+                        </span>
+
+                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur rounded-lg p-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={pIdx === 0}
+                            onClick={() => handleMovePhoto(pIdx, 'up')}
+                            className="h-6 w-6 text-white hover:bg-white/20 rounded"
+                            title="Move earlier"
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={pIdx === photos.length - 1}
+                            onClick={() => handleMovePhoto(pIdx, 'down')}
+                            className="h-6 w-6 text-white hover:bg-white/20 rounded"
+                            title="Move later"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemovePhoto(photo.id)}
+                            className="h-6 w-6 text-rose-400 hover:bg-rose-500/20 rounded"
+                            title="Delete photo"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Input
+                        value={photo.caption || ''}
+                        onChange={(e) => handleUpdatePhotoCaption(photo.id, e.target.value)}
+                        placeholder="Photo caption (e.g. Call to order / Discussion)..."
+                        className="h-8 text-xs rounded-lg"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Live Document Preview (WYSIWYG & Print target) ────────── */}
