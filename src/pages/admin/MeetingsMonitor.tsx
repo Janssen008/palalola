@@ -91,6 +91,40 @@ export default function MeetingsMonitor() {
         getStoredAgendas(),
         getStoredMinutes(),
       ]);
+      // Sync photos from active draft if existing record has none
+      try {
+        const draftMinutesStr = localStorage.getItem('osca_current_minutes_draft_v1');
+        if (draftMinutesStr) {
+          const draft = JSON.parse(draftMinutesStr);
+          if (draft.photos && Array.isArray(draft.photos) && draft.photos.length > 0) {
+            if (minutesList.length > 0) {
+              const target = minutesList[0];
+              if (!target.photos || target.photos.length === 0) {
+                target.photos = draft.photos;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      try {
+        const draftAgendaStr = localStorage.getItem('osca_current_agenda_draft_v1');
+        if (draftAgendaStr) {
+          const draft = JSON.parse(draftAgendaStr);
+          if (draft.photos && Array.isArray(draft.photos) && draft.photos.length > 0) {
+            if (agendasList.length > 0) {
+              const target = agendasList[0];
+              if (!target.photos || target.photos.length === 0) {
+                target.photos = draft.photos;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
       setAgendas(agendasList);
       setMinutes(minutesList);
     } catch (e) {

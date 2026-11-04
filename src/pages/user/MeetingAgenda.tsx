@@ -413,10 +413,24 @@ export default function MeetingAgenda() {
       }
 
       if (newPhotos.length > 0) {
-        setPhotos((prev) => [...prev, ...newPhotos]);
+        const mergedPhotos = [...photos, ...newPhotos];
+        setPhotos(mergedPhotos);
         setShowPhotosInReport(true);
         setActiveTab('preview');
         toast.success(`Added ${newPhotos.length} photo(s)! Showing in preview below.`);
+
+        // Automatically update the record in storage and admin view
+        const newRecord: SavedAgendaRecord = {
+          id: `agenda-${Date.now()}`,
+          savedAt: new Date().toISOString(),
+          date: meetingDate,
+          title: meetingTitle,
+          sections,
+          photos: mergedPhotos,
+        };
+        saveStoredAgenda(newRecord).then((updated) => {
+          setSavedHistory(updated);
+        }).catch(() => {});
 
         setTimeout(() => {
           const el = document.getElementById('photo-documentation-preview');
@@ -455,6 +469,19 @@ export default function MeetingAgenda() {
       setShowPhotosInReport(true);
       setActiveTab('preview');
       toast.success('Loaded 4 sample meeting photos (2x2 grid)!');
+
+      // Automatically sync to saved history and admin monitor
+      const newRecord: SavedAgendaRecord = {
+        id: `agenda-${Date.now()}`,
+        savedAt: new Date().toISOString(),
+        date: meetingDate,
+        title: meetingTitle,
+        sections,
+        photos: samplePhotos,
+      };
+      saveStoredAgenda(newRecord).then((updated) => {
+        setSavedHistory(updated);
+      }).catch(() => {});
 
       setTimeout(() => {
         const el = document.getElementById('photo-documentation-preview');

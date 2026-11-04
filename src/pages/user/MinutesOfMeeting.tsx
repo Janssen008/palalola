@@ -460,10 +460,34 @@ export default function MinutesOfMeeting() {
       }
 
       if (newPhotos.length > 0) {
-        setPhotos((prev) => [...prev, ...newPhotos]);
+        const mergedPhotos = [...photos, ...newPhotos];
+        setPhotos(mergedPhotos);
         setShowPhotosInReport(true);
         setActiveTab('preview');
         toast.success(`Added ${newPhotos.length} photo(s)! Showing in preview below.`);
+
+        // Automatically update the record in storage and admin view
+        const currentRecord: MinutesRecord = {
+          id: `minutes-${Date.now()}`,
+          savedAt: new Date().toISOString(),
+          date: meetingDate,
+          subject,
+          meetingVenueTime,
+          meetingLocation,
+          meetingOpening,
+          attendees,
+          proceedingsTitle,
+          callToOrder,
+          discussions,
+          preparedByName,
+          preparedByRole,
+          attestedByName,
+          attestedByRole,
+          photos: mergedPhotos,
+        };
+        saveStoredMinutes(currentRecord).then((updated) => {
+          setSavedHistory(updated);
+        }).catch(() => {});
 
         setTimeout(() => {
           const el = document.getElementById('photo-documentation-preview');
@@ -502,6 +526,29 @@ export default function MinutesOfMeeting() {
       setShowPhotosInReport(true);
       setActiveTab('preview');
       toast.success('Loaded 4 sample meeting photos (2x2 grid)!');
+
+      // Automatically sync to saved history and admin monitor
+      const sampleRecord: MinutesRecord = {
+        id: `minutes-${Date.now()}`,
+        savedAt: new Date().toISOString(),
+        date: meetingDate,
+        subject,
+        meetingVenueTime,
+        meetingLocation,
+        meetingOpening,
+        attendees,
+        proceedingsTitle,
+        callToOrder,
+        discussions,
+        preparedByName,
+        preparedByRole,
+        attestedByName,
+        attestedByRole,
+        photos: samplePhotos,
+      };
+      saveStoredMinutes(sampleRecord).then((updated) => {
+        setSavedHistory(updated);
+      }).catch(() => {});
 
       setTimeout(() => {
         const el = document.getElementById('photo-documentation-preview');
