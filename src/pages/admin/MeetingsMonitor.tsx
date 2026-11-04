@@ -197,9 +197,6 @@ export default function MeetingsMonitor() {
         listItems: [],
       }));
 
-      if (min.photos && min.photos.length > 0) {
-        injectPhotosToDocx(doc.getZip(), min.photos);
-      }
 
       doc.render({
         date: min.date,
@@ -216,6 +213,10 @@ export default function MeetingsMonitor() {
         attestedByName: min.attestedByName,
         attestedByRole: min.attestedByRole,
       });
+
+      if (min.photos && min.photos.length > 0) {
+        injectPhotosToDocx(doc.getZip(), min.photos);
+      }
 
       const out = doc.getZip().generate({
         type: 'blob',
@@ -523,6 +524,15 @@ export default function MeetingsMonitor() {
                           <span>{min.date}</span>
                           <span>•</span>
                           <span>{min.discussions.length} Discussions</span>
+                          {min.photos && min.photos.length > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="text-amber-600 font-semibold flex items-center gap-1">
+                                <Camera className="h-3 w-3" />
+                                {min.photos.length} Photo{min.photos.length === 1 ? '' : 's'}
+                              </span>
+                            </>
+                          )}
                         </CardDescription>
                       </div>
 
