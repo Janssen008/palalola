@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   Calendar,
+  Camera,
   FileCheck2,
   FileText,
   Search,
@@ -43,6 +44,7 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
+import { injectPhotosToDocx } from '@/lib/docxPhotoHelper';
 
 function toRoman(num: number): string {
   const romanMap: [number, string][] = [
@@ -160,6 +162,10 @@ export default function MeetingsMonitor() {
         items: payloadItems,
       });
 
+      if (agenda.photos && agenda.photos.length > 0) {
+        injectPhotosToDocx(doc.getZip(), agenda.photos);
+      }
+
       const out = doc.getZip().generate({
         type: 'blob',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -190,6 +196,10 @@ export default function MeetingsMonitor() {
         topicContent: d.topicContent,
         listItems: [],
       }));
+
+      if (min.photos && min.photos.length > 0) {
+        injectPhotosToDocx(doc.getZip(), min.photos);
+      }
 
       doc.render({
         date: min.date,
@@ -401,6 +411,15 @@ export default function MeetingsMonitor() {
                           <span>{agenda.date}</span>
                           <span>•</span>
                           <span>{agenda.sections.length} Sections</span>
+                          {agenda.photos && agenda.photos.length > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="text-amber-600 font-semibold flex items-center gap-1">
+                                <Camera className="h-3 w-3" />
+                                {agenda.photos.length} Photo{agenda.photos.length === 1 ? '' : 's'}
+                              </span>
+                            </>
+                          )}
                         </CardDescription>
                       </div>
 
@@ -650,6 +669,40 @@ export default function MeetingsMonitor() {
                     </div>
                   ))}
                 </div>
+
+                  {/* Photo Documentation Section (2x2 Grid) */}
+                  {previewAgenda.photos && previewAgenda.photos.length > 0 && (
+                    <div className="mt-10 pt-6 border-t-2 border-zinc-300 print:break-before-page">
+                      <div className="text-center mb-5">
+                        <h3 className="font-bold text-sm md:text-base tracking-wider text-zinc-950 uppercase font-serif">
+                          ATTACHMENT: PHOTO DOCUMENTATION
+                        </h3>
+                        <p className="text-xs text-zinc-600 font-serif italic mt-0.5">
+                          Documentation of meeting attendees and agenda proceedings
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        {previewAgenda.photos.map((photo, pIdx) => (
+                          <div key={photo.id || pIdx} className="flex flex-col items-center">
+                            <div className="w-full aspect-[4/3] bg-zinc-100 rounded-lg overflow-hidden border border-zinc-300 shadow-sm flex items-center justify-center">
+                              <img
+                                src={photo.dataUrl}
+                                alt={photo.caption || `Photo ${pIdx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            {photo.caption && (
+                              <p className="text-[10px] md:text-xs text-zinc-700 mt-1.5 text-center font-serif italic leading-tight px-1">
+                                {photo.caption}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
               </div>
             </div>
           )}
@@ -783,3 +836,4 @@ export default function MeetingsMonitor() {
     </div>
   );
 }
+

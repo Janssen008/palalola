@@ -292,3 +292,4 @@ export async function deleteStoredMinutes(id: string): Promise<MinutesRecord[]> 
 
   return list;
 }
+

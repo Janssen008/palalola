@@ -25,6 +25,10 @@ import {
   ListOrdered,
   Eye,
   Settings2,
+  Image as ImageIcon,
+  Upload,
+  Sparkles,
+  Camera,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Docxtemplater from 'docxtemplater';
@@ -32,6 +36,8 @@ import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
 import { getStoredAgendas, saveStoredAgenda } from '@/lib/meetingStorage';
+import { injectPhotosToDocx, type DocxPhoto } from '@/lib/docxPhotoHelper';
+import { compressImageFile, sliceGridImage } from '@/lib/imageCompression';
 
 export interface SubAgendaItem {
   id: string;
@@ -45,12 +51,19 @@ export interface AgendaSection {
   subItems: SubAgendaItem[];
 }
 
+export interface AgendaPhoto {
+  id: string;
+  dataUrl: string;
+  caption?: string;
+}
+
 export interface SavedAgendaRecord {
   id: string;
   savedAt: string;
   date: string;
   title: string;
   sections: AgendaSection[];
+  photos?: AgendaPhoto[];
 }
 
 // Convert numbers to Roman numerals (I, II, III, IV, V, VI, etc.)
@@ -152,6 +165,9 @@ export default function MeetingAgenda() {
   );
 
   const [sections, setSections] = useState<AgendaSection[]>(DEFAULT_OSCA_SECTIONS);
+  const [photos, setPhotos] = useState<AgendaPhoto[]>([]);
+  const [showPhotosInReport, setShowPhotosInReport] = useState(true);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('preview');
@@ -173,6 +189,8 @@ export default function MeetingAgenda() {
         if (draft.centerName) setCenterName(draft.centerName);
         if (draft.locationName) setLocationName(draft.locationName);
         if (draft.sections && Array.isArray(draft.sections)) setSections(draft.sections);
+        if (draft.photos && Array.isArray(draft.photos)) setPhotos(draft.photos);
+        if (typeof draft.showPhotosInReport === 'boolean') setShowPhotosInReport(draft.showPhotosInReport);
       }
     } catch (e) {
       console.warn('Failed to load saved agenda data:', e);
@@ -189,12 +207,14 @@ export default function MeetingAgenda() {
         centerName,
         locationName,
         sections,
+        photos,
+        showPhotosInReport,
       };
       localStorage.setItem(LOCAL_CURRENT_KEY, JSON.stringify(draft));
     } catch (e) {
       // Ignore quota errors
     }
-  }, [meetingDate, meetingTitle, associationName, centerName, locationName, sections]);
+  }, [meetingDate, meetingTitle, associationName, centerName, locationName, sections, photos, showPhotosInReport]);
 
   // Section manipulation helpers
   const handleAddSection = () => {
@@ -292,6 +312,7 @@ export default function MeetingAgenda() {
       date: meetingDate,
       title: meetingTitle,
       sections,
+      photos: showPhotosInReport ? photos : [],
     };
     try {
       const updated = await saveStoredAgenda(newRecord);
@@ -307,6 +328,10 @@ export default function MeetingAgenda() {
     setMeetingDate(record.date);
     setMeetingTitle(record.title);
     setSections(record.sections);
+    if (record.photos && Array.isArray(record.photos)) {
+      setPhotos(record.photos);
+      setShowPhotosInReport(record.photos.length > 0);
+    }
     toast.success(`Loaded agenda from ${format(new Date(record.savedAt), 'MMM d, yyyy h:mm a')}`);
   };
 
@@ -336,6 +361,85 @@ export default function MeetingAgenda() {
     } catch (e) {
       toast.error('Failed to copy to clipboard');
     }
+  };
+
+
+  // Photo management handlers
+  const handleUploadPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setLoadingPhotos(true);
+    try {
+      const newPhotos: AgendaPhoto[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        const compressedUrl = await compressImageFile(file, 1000, 1000, 0.82);
+        newPhotos.push({
+          id: `photo-${Date.now()}-${i}`,
+          dataUrl: compressedUrl,
+          caption: '',
+        });
+      }
+      setPhotos((prev) => [...prev, ...newPhotos]);
+      setShowPhotosInReport(true);
+      toast.success(`Added ${newPhotos.length} photo(s)`);
+    } catch (err: any) {
+      console.error('Photo upload error:', err);
+      toast.error('Failed to process photos');
+    } finally {
+      setLoadingPhotos(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLoadSamplePhotos = async () => {
+    setLoadingPhotos(true);
+    try {
+      const slices = await sliceGridImage('/sample_meeting_grid.jpg');
+      const sampleCaptions = [
+        'Presiding Officers & Meeting Call to Order',
+        'Federation Officers & Attendees Session',
+        'Senior Citizen Presidents Discussion',
+        'Attendance Review & Agenda Proceeding',
+      ];
+      const samplePhotos: AgendaPhoto[] = slices.map((url, idx) => ({
+        id: `sample-photo-${Date.now()}-${idx}`,
+        dataUrl: url,
+        caption: sampleCaptions[idx] || `Photo ${idx + 1}`,
+      }));
+      setPhotos(samplePhotos);
+      setShowPhotosInReport(true);
+      toast.success('Loaded 4 sample meeting photos (2x2 grid)!');
+    } catch (err: any) {
+      console.error('Failed to load sample photos:', err);
+      toast.error('Could not load sample photos');
+    } finally {
+      setLoadingPhotos(false);
+    }
+  };
+
+  const handleRemovePhoto = (id: string) => {
+    setPhotos(photos.filter((p) => p.id !== id));
+  };
+
+  const handleUpdatePhotoCaption = (id: string, caption: string) => {
+    setPhotos(photos.map((p) => (p.id === id ? { ...p, caption } : p)));
+  };
+
+  const handleMovePhoto = (index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= photos.length) return;
+    const arr = [...photos];
+    const temp = arr[index];
+    arr[index] = arr[target];
+    arr[target] = temp;
+    setPhotos(arr);
+  };
+
+  const handleClearPhotos = () => {
+    setPhotos([]);
   };
 
   // Download Word docx
@@ -369,6 +473,10 @@ export default function MeetingAgenda() {
         title: meetingTitle,
         items: payloadItems,
       });
+
+      if (photos.length > 0 && showPhotosInReport) {
+        injectPhotosToDocx(doc.getZip(), photos);
+      }
 
       const out = doc.getZip().generate({
         type: 'blob',
@@ -730,6 +838,156 @@ export default function MeetingAgenda() {
               </Button>
             </CardContent>
           </Card>
+
+
+          {/* ── Photo Documentation Attachment Card ─────────────────── */}
+          <Card className="rounded-2xl border shadow-sm">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Camera className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base font-bold">
+                    Attachment: Photo Documentation (2x2 Grid)
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-xs mt-1">
+                  Attach documentation photos of attendees and meeting discussions. Displayed as a formal 2x2 grid in preview, print, and Word export.
+                </CardDescription>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={loadingPhotos}
+                  onClick={handleLoadSamplePhotos}
+                  className="rounded-xl h-8 text-xs gap-1.5 border-dashed hover:border-primary"
+                  title="Load the 4 meeting photos from the official template"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Load Sample Photos</span>
+                </Button>
+
+                <label className="cursor-pointer inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm gap-1.5">
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>Upload Photo(s)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleUploadPhotos}
+                  />
+                </label>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4 pt-4">
+              {photos.length === 0 ? (
+                <div className="text-center py-8 px-4 rounded-xl border border-dashed bg-muted/20">
+                  <ImageIcon className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
+                  <p className="text-sm font-semibold text-foreground">No photos attached yet</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                    Upload your meeting photos or click &quot;Load Sample Photos&quot; to test with the 4 meeting photos shown in the official OSCA report.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Photo status & toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-muted/30 border text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">
+                        {photos.length} photo{photos.length === 1 ? '' : 's'} attached
+                      </span>
+                      <span className="text-muted-foreground">• Arranged in 2x2 grid</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer font-medium select-none">
+                        <input
+                          type="checkbox"
+                          checked={showPhotosInReport}
+                          onChange={(e) => setShowPhotosInReport(e.target.checked)}
+                          className="rounded text-primary focus:ring-primary h-4 w-4"
+                        />
+                        <span>Include in Report Preview & Export</span>
+                      </label>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClearPhotos}
+                        className="h-7 px-2 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-lg"
+                      >
+                        Remove All
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Photos Grid in Editor */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {photos.map((photo, pIdx) => (
+                      <div
+                        key={photo.id}
+                        className="p-3 rounded-xl border bg-card/60 backdrop-blur space-y-2.5 relative group"
+                      >
+                        <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-black/5 border">
+                          <img
+                            src={photo.dataUrl}
+                            alt={photo.caption || `Photo ${pIdx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <span className="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            #{pIdx + 1}
+                          </span>
+
+                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur rounded-lg p-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={pIdx === 0}
+                              onClick={() => handleMovePhoto(pIdx, 'up')}
+                              className="h-6 w-6 text-white hover:bg-white/20 rounded"
+                              title="Move earlier"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={pIdx === photos.length - 1}
+                              onClick={() => handleMovePhoto(pIdx, 'down')}
+                              className="h-6 w-6 text-white hover:bg-white/20 rounded"
+                              title="Move later"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemovePhoto(photo.id)}
+                              className="h-6 w-6 text-rose-400 hover:bg-rose-500/20 rounded"
+                              title="Delete photo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <Input
+                          value={photo.caption || ''}
+                          onChange={(e) => handleUpdatePhotoCaption(photo.id, e.target.value)}
+                          placeholder="Photo caption (e.g. Call to order / Discussion)..."
+                          className="h-8 text-xs rounded-lg"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
       )}
 
@@ -827,6 +1085,41 @@ export default function MeetingAgenda() {
               );
             })}
           </div>
+
+          {/* Photo Documentation Attachment (2x2 Grid) */}
+          {photos.length > 0 && showPhotosInReport && (
+            <div className="mt-12 pt-8 border-t-2 border-zinc-300 print:break-before-page">
+              <div className="text-center mb-6">
+                <h3 className="font-bold text-base md:text-lg tracking-wider text-zinc-950 uppercase font-serif">
+                  ATTACHMENT: PHOTO DOCUMENTATION
+                </h3>
+                <p className="text-xs text-zinc-600 font-serif italic mt-0.5">
+                  Documentation of meeting attendees, agenda discussions, and proceedings
+                </p>
+              </div>
+
+              {/* 2x2 Grid matching the user's template */}
+              <div className="grid grid-cols-2 gap-4 md:gap-6">
+                {photos.map((photo, pIdx) => (
+                  <div key={photo.id} className="flex flex-col items-center">
+                    <div className="w-full aspect-[4/3] bg-zinc-100 rounded-lg overflow-hidden border border-zinc-300 shadow-sm flex items-center justify-center">
+                      <img
+                        src={photo.dataUrl}
+                        alt={photo.caption || `Meeting documentation photo ${pIdx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {photo.caption && (
+                      <p className="text-[11px] md:text-xs text-zinc-700 mt-2 text-center font-serif italic leading-tight px-1">
+                        {photo.caption}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 

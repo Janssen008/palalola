@@ -25,6 +25,10 @@ import {
   Eye,
   Settings2,
   Users,
+  Image as ImageIcon,
+  Upload,
+  Sparkles,
+  Camera,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Docxtemplater from 'docxtemplater';
@@ -32,6 +36,8 @@ import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
 import { getStoredMinutes, saveStoredMinutes } from '@/lib/meetingStorage';
+import { injectPhotosToDocx, type DocxPhoto } from '@/lib/docxPhotoHelper';
+import { compressImageFile, sliceGridImage } from '@/lib/imageCompression';
 
 export interface DiscussionItem {
   id: string;
@@ -55,6 +61,7 @@ export interface MinutesRecord {
   preparedByRole: string;
   attestedByName: string;
   attestedByRole: string;
+  photos?: DocxPhoto[];
 }
 
 const DEFAULT_ATTENDEES: string[] = [
@@ -158,6 +165,9 @@ export default function MinutesOfMeeting() {
   );
 
   const [downloading, setDownloading] = useState(false);
+  const [photos, setPhotos] = useState<DocxPhoto[]>([]);
+  const [showPhotosInReport, setShowPhotosInReport] = useState(true);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('preview');
   const [savedHistory, setSavedHistory] = useState<MinutesRecord[]>([]);
@@ -185,6 +195,8 @@ export default function MinutesOfMeeting() {
         if (draft.preparedByRole) setPreparedByRole(draft.preparedByRole);
         if (draft.attestedByName) setAttestedByName(draft.attestedByName);
         if (draft.attestedByRole) setAttestedByRole(draft.attestedByRole);
+        if (draft.photos && Array.isArray(draft.photos)) setPhotos(draft.photos);
+        if (typeof draft.showPhotosInReport === 'boolean') setShowPhotosInReport(draft.showPhotosInReport);
       }
     } catch (e) {
       console.warn('Failed to load saved minutes data:', e);
@@ -208,6 +220,8 @@ export default function MinutesOfMeeting() {
         preparedByRole,
         attestedByName,
         attestedByRole,
+        photos,
+        showPhotosInReport,
       };
       localStorage.setItem(LOCAL_CURRENT_KEY, JSON.stringify(draft));
     } catch (e) {
@@ -322,6 +336,7 @@ export default function MinutesOfMeeting() {
       preparedByRole,
       attestedByName,
       attestedByRole,
+      photos: showPhotosInReport ? photos : [],
     };
     try {
       const updated = await saveStoredMinutes(record);
@@ -347,6 +362,10 @@ export default function MinutesOfMeeting() {
     setPreparedByRole(record.preparedByRole);
     setAttestedByName(record.attestedByName);
     setAttestedByRole(record.attestedByRole);
+    if (record.photos && Array.isArray(record.photos)) {
+      setPhotos(record.photos);
+      setShowPhotosInReport(record.photos.length > 0);
+    }
     toast.success(`Loaded minutes from ${format(new Date(record.savedAt), 'MMM d, yyyy h:mm a')}`);
   };
 
@@ -394,6 +413,85 @@ export default function MinutesOfMeeting() {
     }
   };
 
+
+  // Photo management handlers
+  const handleUploadPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setLoadingPhotos(true);
+    try {
+      const newPhotos: DocxPhoto[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        const compressedUrl = await compressImageFile(file, 1000, 1000, 0.82);
+        newPhotos.push({
+          id: `min-photo-${Date.now()}-${i}`,
+          dataUrl: compressedUrl,
+          caption: '',
+        });
+      }
+      setPhotos((prev) => [...prev, ...newPhotos]);
+      setShowPhotosInReport(true);
+      toast.success(`Added ${newPhotos.length} photo(s)`);
+    } catch (err: any) {
+      console.error('Photo upload error:', err);
+      toast.error('Failed to process photos');
+    } finally {
+      setLoadingPhotos(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLoadSamplePhotos = async () => {
+    setLoadingPhotos(true);
+    try {
+      const slices = await sliceGridImage('/sample_meeting_grid.jpg');
+      const sampleCaptions = [
+        'Presiding Officers & Meeting Call to Order',
+        'Federation Officers & Attendees Session',
+        'Senior Citizen Presidents Discussion',
+        'Attendance Review & Agenda Proceeding',
+      ];
+      const samplePhotos: DocxPhoto[] = slices.map((url, idx) => ({
+        id: `sample-min-photo-${Date.now()}-${idx}`,
+        dataUrl: url,
+        caption: sampleCaptions[idx] || `Photo ${idx + 1}`,
+      }));
+      setPhotos(samplePhotos);
+      setShowPhotosInReport(true);
+      toast.success('Loaded 4 sample meeting photos (2x2 grid)!');
+    } catch (err: any) {
+      console.error('Failed to load sample photos:', err);
+      toast.error('Could not load sample photos');
+    } finally {
+      setLoadingPhotos(false);
+    }
+  };
+
+  const handleRemovePhoto = (id: string) => {
+    setPhotos(photos.filter((p) => p.id !== id));
+  };
+
+  const handleUpdatePhotoCaption = (id: string, caption: string) => {
+    setPhotos(photos.map((p) => (p.id === id ? { ...p, caption } : p)));
+  };
+
+  const handleMovePhoto = (index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= photos.length) return;
+    const arr = [...photos];
+    const temp = arr[index];
+    arr[index] = arr[target];
+    arr[target] = temp;
+    setPhotos(arr);
+  };
+
+  const handleClearPhotos = () => {
+    setPhotos([]);
+  };
+
   // Export Word (.docx)
   const handleDownloadWord = async () => {
     setDownloading(true);
@@ -415,6 +513,10 @@ export default function MinutesOfMeeting() {
         topicContent: d.topicContent,
         listItems: [],
       }));
+
+      if (photos.length > 0 && showPhotosInReport) {
+        injectPhotosToDocx(doc.getZip(), photos);
+      }
 
       doc.render({
         date: meetingDate,
@@ -868,6 +970,154 @@ export default function MinutesOfMeeting() {
               </div>
             </CardContent>
           </Card>
+
+
+          {/* ── Photo Documentation Card ────────────────────────── */}
+          <Card className="rounded-2xl border shadow-sm">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Camera className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base font-bold">
+                    Attachment: Photo Documentation (2x2 Grid)
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-xs mt-1">
+                  Attach documentation photos of attendees and meeting discussions. Displayed as a formal 2x2 grid in preview, print, and Word export.
+                </CardDescription>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={loadingPhotos}
+                  onClick={handleLoadSamplePhotos}
+                  className="rounded-xl h-8 text-xs gap-1.5 border-dashed hover:border-primary"
+                  title="Load the 4 meeting photos from the official template"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Load Sample Photos</span>
+                </Button>
+
+                <label className="cursor-pointer inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm gap-1.5">
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>Upload Photo(s)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleUploadPhotos}
+                  />
+                </label>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4 pt-4">
+              {photos.length === 0 ? (
+                <div className="text-center py-8 px-4 rounded-xl border border-dashed bg-muted/20">
+                  <ImageIcon className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
+                  <p className="text-sm font-semibold text-foreground">No photos attached yet</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                    Upload your meeting photos or click &quot;Load Sample Photos&quot; to test with the 4 meeting photos shown in the official OSCA report.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-muted/30 border text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">
+                        {photos.length} photo{photos.length === 1 ? '' : 's'} attached
+                      </span>
+                      <span className="text-muted-foreground">• Arranged in 2x2 grid</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer font-medium select-none">
+                        <input
+                          type="checkbox"
+                          checked={showPhotosInReport}
+                          onChange={(e) => setShowPhotosInReport(e.target.checked)}
+                          className="rounded text-primary focus:ring-primary h-4 w-4"
+                        />
+                        <span>Include in Report Preview & Export</span>
+                      </label>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClearPhotos}
+                        className="h-7 px-2 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-lg"
+                      >
+                        Remove All
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {photos.map((photo, pIdx) => (
+                      <div
+                        key={photo.id}
+                        className="p-3 rounded-xl border bg-card/60 backdrop-blur space-y-2.5 relative group"
+                      >
+                        <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-black/5 border">
+                          <img
+                            src={photo.dataUrl}
+                            alt={photo.caption || `Photo ${pIdx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <span className="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            #{pIdx + 1}
+                          </span>
+
+                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur rounded-lg p-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={pIdx === 0}
+                              onClick={() => handleMovePhoto(pIdx, 'up')}
+                              className="h-6 w-6 text-white hover:bg-white/20 rounded"
+                              title="Move earlier"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={pIdx === photos.length - 1}
+                              onClick={() => handleMovePhoto(pIdx, 'down')}
+                              className="h-6 w-6 text-white hover:bg-white/20 rounded"
+                              title="Move later"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemovePhoto(photo.id)}
+                              className="h-6 w-6 text-rose-400 hover:bg-rose-500/20 rounded"
+                              title="Delete photo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <Input
+                          value={photo.caption || ''}
+                          onChange={(e) => handleUpdatePhotoCaption(photo.id, e.target.value)}
+                          placeholder="Photo caption (e.g. Call to order / Discussion)..."
+                          className="h-8 text-xs rounded-lg"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
       )}
 
