@@ -4,6 +4,8 @@ export interface DocxPhoto {
   id: string;
   dataUrl: string;
   caption?: string;
+  width?: number;
+  height?: number;
 }
 
 function escapeXml(unsafe: string): string {
@@ -16,7 +18,8 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * Injects photos into an already rendered Docxtemplater PizZip instance in a 2x2 grid table.
+ * Injects photos into an already rendered Docxtemplater PizZip instance in a 2x2 grid table,
+ * perfectly preserving the image's original aspect ratio without distortion or blur.
  */
 export function injectPhotosToDocx(
   zip: PizZip,
@@ -51,7 +54,13 @@ export function injectPhotosToDocx(
 
   // 2. Add each photo to word/media and word/_rels/document.xml.rels
   let rels = zip.file('word/_rels/document.xml.rels')?.asText() || '';
-  const photoRels: Array<{ relId: string; photoId: number; caption?: string }> = [];
+  const photoRels: Array<{
+    relId: string;
+    photoId: number;
+    caption?: string;
+    width?: number;
+    height?: number;
+  }> = [];
 
   photos.forEach((photo, idx) => {
     const photoNum = idx + 1;
@@ -78,6 +87,8 @@ export function injectPhotosToDocx(
         relId,
         photoId: 6000 + photoNum,
         caption: photo.caption,
+        width: photo.width,
+        height: photo.height,
       });
     } catch (e) {
       console.warn('Failed to encode photo for docx export:', e);
@@ -88,16 +99,42 @@ export function injectPhotosToDocx(
 
   if (photoRels.length === 0) return;
 
+  // Maximum box dimensions per table cell (EMUs)
+  const MAX_CX = 2900000;
+  const MAX_CY = 2175000;
+
   // 3. Build 2x2 grid table rows
   const rowsXml: string[] = [];
   for (let i = 0; i < photoRels.length; i += 2) {
     const left = photoRels[i];
     const right = photoRels[i + 1];
 
-    const makeCell = (p?: { relId: string; photoId: number; caption?: string }) => {
+    const makeCell = (p?: {
+      relId: string;
+      photoId: number;
+      caption?: string;
+      width?: number;
+      height?: number;
+    }) => {
       if (!p) {
         return '<w:tc><w:tcPr><w:tcW w:w="4800" w:type="dxa"/></w:tcPr><w:p/></w:tc>';
       }
+
+      // Calculate proportional cx & cy to prevent stretching
+      let cx = MAX_CX;
+      let cy = MAX_CY;
+      if (p.width && p.height && p.width > 0 && p.height > 0) {
+        const imgRatio = p.width / p.height;
+        const boxRatio = MAX_CX / MAX_CY;
+        if (imgRatio >= boxRatio) {
+          cx = MAX_CX;
+          cy = Math.round(MAX_CX / imgRatio);
+        } else {
+          cy = MAX_CY;
+          cx = Math.round(MAX_CY * imgRatio);
+        }
+      }
+
       return `
         <w:tc>
           <w:tcPr>
@@ -114,7 +151,7 @@ export function injectPhotosToDocx(
             <w:r>
               <w:drawing>
                 <wp:inline distT="0" distB="0" distL="0" distR="0">
-                  <wp:extent cx="2900000" cy="2175000"/>
+                  <wp:extent cx="${cx}" cy="${cy}"/>
                   <wp:effectExtent l="0" t="0" r="0" b="0"/>
                   <wp:docPr id="${p.photoId}" name="Photo ${p.photoId}"/>
                   <wp:cNvGraphicFramePr>
@@ -134,7 +171,7 @@ export function injectPhotosToDocx(
                         <pic:spPr>
                           <a:xfrm>
                             <a:off x="0" y="0"/>
-                            <a:ext cx="2900000" cy="2175000"/>
+                            <a:ext cx="${cx}" cy="${cy}"/>
                           </a:xfrm>
                           <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
                         </pic:spPr>
@@ -232,4 +269,3 @@ export function injectPhotosToDocx(
   }
   zip.file('word/document.xml', docXml);
 }
-

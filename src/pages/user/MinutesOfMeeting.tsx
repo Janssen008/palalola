@@ -427,24 +427,34 @@ export default function MinutesOfMeeting() {
         const isImg = file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|jfif|heic)$/i.test(file.name);
         if (!isImg) continue;
 
-        let dataUrl = '';
+        let result: { dataUrl: string; width: number; height: number };
         try {
-          dataUrl = await compressImageFile(file, 1000, 1000, 0.85);
+          result = await compressImageFile(file, 2000, 2000, 0.92);
         } catch (compressionErr) {
           console.warn('Canvas compression failed, falling back to raw dataUrl:', compressionErr);
-          dataUrl = await new Promise<string>((resolve, reject) => {
+          const rawUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
             reader.onerror = () => reject(new Error('Failed to read file'));
             reader.readAsDataURL(file);
           });
+          const img = new Image();
+          img.src = rawUrl;
+          await new Promise((res) => { img.onload = res; img.onerror = res; });
+          result = {
+            dataUrl: rawUrl,
+            width: img.naturalWidth || 1200,
+            height: img.naturalHeight || 900,
+          };
         }
 
-        if (dataUrl) {
+        if (result.dataUrl) {
           newPhotos.push({
             id: `min-photo-${Date.now()}-${i}`,
-            dataUrl,
+            dataUrl: result.dataUrl,
             caption: '',
+            width: result.width,
+            height: result.height,
           });
         }
       }
@@ -481,10 +491,12 @@ export default function MinutesOfMeeting() {
         'Senior Citizen Presidents Discussion',
         'Attendance Review & Agenda Proceeding',
       ];
-      const samplePhotos: DocxPhoto[] = slices.map((url, idx) => ({
+      const samplePhotos: DocxPhoto[] = slices.map((item, idx) => ({
         id: `sample-min-photo-${Date.now()}-${idx}`,
-        dataUrl: url,
+        dataUrl: item.dataUrl,
         caption: sampleCaptions[idx] || `Photo ${idx + 1}`,
+        width: item.width,
+        height: item.height,
       }));
       setPhotos(samplePhotos);
       setShowPhotosInReport(true);
@@ -1563,14 +1575,22 @@ export default function MinutesOfMeeting() {
                   {photos.map((photo, pIdx) => (
                     <div key={photo.id} className="photo-item-card flex flex-col items-center">
                       <div
-                        className="photo-img-wrapper w-full aspect-[4/3] min-h-[220px] bg-zinc-100 rounded-lg overflow-hidden border border-zinc-300 shadow-sm flex items-center justify-center"
-                        style={{ minHeight: '220px' }}
+                        className="photo-img-wrapper w-full bg-zinc-50 rounded-lg overflow-hidden border border-zinc-200 shadow-sm flex items-center justify-center p-1"
+                        style={{ height: '240px', width: '100%' }}
                       >
                         <img
                           src={photo.dataUrl}
                           alt={photo.caption || `Meeting documentation photo ${pIdx + 1}`}
-                          className="w-full h-full object-cover"
-                          style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+                          className="max-w-full max-h-full object-contain rounded"
+                          style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            width: 'auto',
+                            height: 'auto',
+                            objectFit: 'contain',
+                            display: 'block',
+                            margin: 'auto',
+                          }}
                         />
                       </div>
                       {photo.caption && (
