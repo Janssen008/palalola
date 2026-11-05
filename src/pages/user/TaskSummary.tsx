@@ -442,13 +442,13 @@ export default function TaskSummary() {
         }
       });
 
-      // 5. Build role label for approver
-      const approverTitle =
-        deptHead?.role === "oic"
+      // 5. Build name and role label for approver (Name on top, Role underneath)
+      const approverName = isOSCA ? "NELIA V. TRINIDAD" : (deptHead?.full_name || "NELIA V. TRINIDAD");
+      const approverTitle = isOSCA
+        ? "OSCA Chairperson / OIC"
+        : deptHead?.role === "oic"
           ? "Officer In Charge"
-          : deptHead?.role === "department_head"
-            ? "Department Head"
-            : "Department Head";
+          : "Department Head";
 
       // Helper function to Title Case (often referred to as camel case by non-programmers)
       const toTitleCase = (str: string) => {
@@ -490,7 +490,7 @@ export default function TaskSummary() {
         user: user?.user_metadata?.full_name || profile?.full_name || "User",
         dateRange: formattedRange,
         tasks: firstPage.tasks,
-        headOic: deptHead?.full_name || "",
+        headOic: approverName,
         officer: approverTitle,
         // Pages array for nested-structure templates (other-dept / ICT style)
         pages: pagesPayload.map((page, index) => ({
@@ -501,7 +501,7 @@ export default function TaskSummary() {
           tasks: page.tasks,
           office: formattedOffice,
           officeAcronym: officeAcronym,
-          headOic: deptHead?.full_name || "",
+          headOic: approverName,
           officer: approverTitle,
           pageBreak:
             index < pagesPayload.length - 1

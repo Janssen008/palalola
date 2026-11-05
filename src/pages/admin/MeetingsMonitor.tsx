@@ -455,6 +455,10 @@ export default function MeetingsMonitor() {
         {
           dateRange: `Month of ${latestMonthStr}`,
           tasks: monthTasks,
+          user: summary.userName,
+          role: summary.userRole,
+          headOic: 'NELIA V. TRINIDAD',
+          officer: 'OSCA Chairperson / OIC',
         },
       ];
 
@@ -462,8 +466,8 @@ export default function MeetingsMonitor() {
         pages: pagesPayload,
         user: summary.userName,
         role: summary.userRole,
-        headOic: 'OIC / OSCA Head',
-        officer: 'NELIA V. TRINIDAD',
+        headOic: 'NELIA V. TRINIDAD',
+        officer: 'OSCA Chairperson / OIC',
       });
 
       // Enforce 8.5 x 13 in (12240 x 18720 dxa) Legal size
