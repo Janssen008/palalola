@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ClipboardList, CalendarIcon, Filter, ChevronLeft, ChevronRight, Tags, Building2, UserCircle2, Search, Users, Activity } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ClipboardList, CalendarIcon, Filter, ChevronLeft, ChevronRight, Tags, Building2, UserCircle2, Search, Users, Activity, Eye, Clock, User, Briefcase } from 'lucide-react';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,7 @@ export default function TaskLogsPage() {
   const [selectedOffice, setSelectedOffice] = useState<string>('all');
   const [searchUser, setSearchUser] = useState<string>('');
   const [page, setPage] = useState(0);
+  const [previewLog, setPreviewLog] = useState<any | null>(null);
 
   const { data: users, isLoading: loadingUsers } = useQuery({
     queryKey: ['admin', 'users'],
@@ -302,7 +304,7 @@ export default function TaskLogsPage() {
                     </TableHeader>
                     <TableBody>
                       {logsData.logs.map((log: any) => (
-                        <TableRow key={log.id} className="group hover:bg-muted/30 transition-colors">
+                        <TableRow key={log.id} className="group hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setPreviewLog(log)}>
                           {selectedUser === 'all' && (
                             <TableCell className="font-medium">
                               {userMap.get(log.user_id) ?? 'Unknown User'}
@@ -347,12 +349,82 @@ export default function TaskLogsPage() {
           </Card>
         </div>
       </div>
+
+      {/* Task Preview Dialog */}
+      <Dialog open={!!previewLog} onOpenChange={(open) => !open && setPreviewLog(null)}>
+        <DialogContent className="max-w-lg rounded-2xl p-0 overflow-hidden">
+          <DialogHeader className="bg-muted/40 border-b px-6 py-4 flex flex-row items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-xl">
+              <ClipboardList className="h-5 w-5 text-primary" />
+            </div>
+            <DialogTitle className="text-lg font-bold">Task Detail</DialogTitle>
+          </DialogHeader>
+          {previewLog && (
+            <div className="p-6 space-y-5">
+              {/* Task Title */}
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1.5">Task / Activity</p>
+                <p className="text-base font-semibold text-foreground leading-relaxed whitespace-pre-wrap">
+                  {previewLog.custom_title || '—'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Employee */}
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border">
+                  <User className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Employee</p>
+                    <p className="text-sm font-semibold mt-0.5">{userMap.get(previewLog.user_id) ?? 'Unknown'}</p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {users?.find((u: any) => u.user_id === previewLog.user_id)?.role?.replace('_', ' ') ?? ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Office */}
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border">
+                  <Briefcase className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Office</p>
+                    <p className="text-sm font-semibold mt-0.5">
+                      {previewLog.office_id ? (offMap.get(previewLog.office_id) ?? 'Unknown Office') : 'No Office'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Date */}
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border">
+                  <CalendarIcon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Date</p>
+                    <p className="text-sm font-semibold mt-0.5">{format(new Date(previewLog.logged_at), 'MMMM d, yyyy')}</p>
+                  </div>
+                </div>
+
+                {/* Time */}
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border">
+                  <Clock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Time Logged</p>
+                    <p className="text-sm font-semibold mt-0.5">{format(new Date(previewLog.logged_at), 'h:mm a')}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setPreviewLog(null)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-// Add Globe icon if not imported
-function Globe(props: any) {
+// Globe icon (inline SVG)
+function Globe(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
