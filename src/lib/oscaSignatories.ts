@@ -294,3 +294,4 @@ export function injectSignatoriesToDocx(zip: any, signatories: SignatoryItem[]):
     zip.file('word/document.xml', xml);
   }
 }
+

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import {
   Card,
   CardContent,
@@ -30,6 +32,10 @@ import {
   Building2,
   Layers,
   CheckCircle2,
+  ClipboardCheck,
+  Clock,
+  User,
+  Briefcase,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -78,7 +84,10 @@ export default function MeetingsMonitor() {
   const [minutes, setMinutes] = useState<MinutesRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'agendas' | 'minutes'>('agendas');
+  const [activeTab, setActiveTab] = useState<'agendas' | 'minutes' | 'tasklogs'>('agendas');
+
+  // Task logs preview state
+  const [previewTaskLog, setPreviewTaskLog] = useState<any | null>(null);
 
   // Preview modal state
   const [previewAgenda, setPreviewAgenda] = useState<SavedAgendaRecord | null>(null);
@@ -91,6 +100,7 @@ export default function MeetingsMonitor() {
       const [agendasList, minutesList] = await Promise.all([
         getStoredAgendas(),
         getStoredMinutes(),
+        refetchTaskLogs(),
       ]);
       // Sync photos from active draft if existing record has none
       try {
@@ -169,6 +179,56 @@ export default function MeetingsMonitor() {
         m.discussions.some((d) => d.topicTitle.toLowerCase().includes(q))
     );
   }, [minutes, search]);
+
+  // ── Task Logs (Supabase) ─────────────────────────────
+  const { data: taskLogsUsers } = useQuery({
+    queryKey: ['admin', 'taskLogs-users'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('user_id, full_name, role, office_id');
+      return (data as any[]) ?? [];
+    },
+  });
+
+  const { data: taskLogsOffices } = useQuery({
+    queryKey: ['admin', 'taskLogs-offices'],
+    queryFn: async () => {
+      const { data } = await supabase.from('offices').select('id, name');
+      return (data as any[]) ?? [];
+    },
+  });
+
+  const { data: rawTaskLogs, refetch: refetchTaskLogs } = useQuery({
+    queryKey: ['admin', 'taskLogs-monitor'],
+    queryFn: async () => {
+      let q = supabase.from('task_logs').select('*').order('logged_at', { ascending: false }).limit(200);
+      return ((await q).data as any[]) ?? [];
+    },
+  });
+
+  const tlUserMap = useMemo(() => {
+    const m = new Map<string, any>();
+    taskLogsUsers?.forEach((u: any) => m.set(u.user_id, u));
+    return m;
+  }, [taskLogsUsers]);
+
+  const tlOffMap = useMemo(() => {
+    const m = new Map<string, string>();
+    taskLogsOffices?.forEach((o: any) => m.set(o.id, o.name));
+    return m;
+  }, [taskLogsOffices]);
+
+  const filteredTaskLogs = useMemo(() => {
+    if (!rawTaskLogs) return [];
+    if (!search.trim()) return rawTaskLogs;
+    const q = search.toLowerCase();
+    return rawTaskLogs.filter((log: any) => {
+      const userName = tlUserMap.get(log.user_id)?.full_name ?? '';
+      return (
+        (log.custom_title ?? '').toLowerCase().includes(q) ||
+        userName.toLowerCase().includes(q)
+      );
+    });
+  }, [rawTaskLogs, search, tlUserMap]);
 
   // Export Agenda docx
   const handleDownloadAgenda = async (agenda: SavedAgendaRecord) => {
@@ -284,6 +344,19 @@ export default function MeetingsMonitor() {
     }
   };
 
+  // Delete Task Log
+  const handleDeleteTaskLog = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this task log?')) {
+      const { error } = await supabase.from('task_logs').delete().eq('id', id);
+      if (error) {
+        toast.error('Failed to delete task log: ' + error.message);
+      } else {
+        toast.success('Task log deleted');
+        refetchTaskLogs();
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
@@ -354,18 +427,17 @@ export default function MeetingsMonitor() {
           <CardContent className="p-5 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Total Topics / Sections
+                Task Logs
               </p>
               <h3 className="text-2xl font-bold mt-1 text-foreground">
-                {agendas.reduce((acc, a) => acc + a.sections.length, 0) +
-                  minutes.reduce((acc, m) => acc + m.discussions.length, 0)}
+                {rawTaskLogs?.length ?? '—'}
               </h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Items across all records
+                Daily tasks logged
               </p>
             </div>
             <div className="h-11 w-11 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-              <Layers className="h-5 w-5" />
+              <ClipboardCheck className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
@@ -397,6 +469,19 @@ export default function MeetingsMonitor() {
             Minutes of Meeting
             <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
               {filteredMinutes.length}
+            </Badge>
+          </Button>
+
+          <Button
+            variant={activeTab === 'tasklogs' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab('tasklogs')}
+            className="rounded-xl gap-2 flex-1 sm:flex-initial"
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            Task Logs
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
+              {filteredTaskLogs.length}
             </Badge>
           </Button>
         </div>
@@ -628,6 +713,103 @@ export default function MeetingsMonitor() {
         </div>
       )}
 
+      {/* ── Task Logs Tab ──────────────────────────────────── */}
+      {activeTab === 'tasklogs' && (
+        <div className="space-y-4">
+          {!rawTaskLogs || filteredTaskLogs.length === 0 ? (
+            <Card className="rounded-2xl border text-center py-12">
+              <ClipboardCheck className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+              <p className="text-muted-foreground font-medium">No task logs found</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                When users log daily tasks, they will appear here automatically.
+              </p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredTaskLogs.map((log: any) => {
+                const userInfo = tlUserMap.get(log.user_id);
+                const officeName = log.office_id ? (tlOffMap.get(log.office_id) ?? 'Unknown Office') : 'No Office';
+                return (
+                  <Card
+                    key={log.id}
+                    className="rounded-2xl border bg-card/60 backdrop-blur shadow-sm hover:border-amber-500/40 transition-all flex flex-col justify-between"
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-amber-500 border-amber-500/30 bg-amber-500/10 mb-2"
+                          >
+                            Daily Task Log
+                          </Badge>
+                          <CardTitle className="text-base font-bold text-foreground line-clamp-1">
+                            {log.custom_title || '(No task title)'}
+                          </CardTitle>
+                          <CardDescription className="text-xs flex items-center gap-1.5 mt-1 flex-wrap">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{format(new Date(log.logged_at), 'MMM d, yyyy')}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {userInfo?.full_name ?? 'Unknown User'}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {format(new Date(log.logged_at), 'h:mm a')}
+                            </span>
+                          </CardDescription>
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteTaskLog(log.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-rose-500 rounded-lg shrink-0"
+                          title="Delete task log"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-3 pt-0">
+                      <div className="bg-muted/30 p-3 rounded-xl space-y-1 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between text-[11px] font-medium text-foreground pb-1 border-b border-border/50">
+                          <span className="flex items-center gap-1">
+                            <Briefcase className="h-3 w-3 text-muted-foreground" />
+                            {officeName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground capitalize">
+                            {userInfo?.role?.replace('_', ' ') ?? 'User'}
+                          </span>
+                        </div>
+                        <p className="text-foreground text-xs line-clamp-3 leading-relaxed mt-1">
+                          {log.custom_title || 'No description provided.'}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPreviewTaskLog({ ...log, userInfo, officeName })}
+                          className="rounded-xl h-8 text-xs gap-1.5 flex-1"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Preview Document
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Agenda Document Preview Dialog ──────────────────── */}
       <Dialog open={!!previewAgenda} onOpenChange={(open) => !open && setPreviewAgenda(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 md:p-6 rounded-2xl">
@@ -961,7 +1143,124 @@ export default function MeetingsMonitor() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Task Log Document Preview Dialog ────────────────── */}
+      <Dialog open={!!previewTaskLog} onOpenChange={(open) => !open && setPreviewTaskLog(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 md:p-6 rounded-2xl">
+          <DialogHeader className="flex flex-row items-center justify-between pb-3 border-b">
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-amber-500" />
+              Daily Task Document Preview
+            </DialogTitle>
+            {previewTaskLog && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.print()}
+                  className="rounded-xl h-8 text-xs gap-1"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print
+                </Button>
+              </div>
+            )}
+          </DialogHeader>
+
+          {previewTaskLog && (
+            <div className="flex justify-center py-4 bg-muted/20 rounded-xl">
+              <div
+                className="bg-white text-zinc-950 font-serif w-full max-w-[750px] min-h-[750px] p-8 md:p-12 rounded-xl shadow-lg border border-zinc-200"
+                style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
+              >
+                {/* Header with Seals */}
+                <div className="grid grid-cols-[88px_1fr_88px] items-center gap-4 pb-1">
+                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
+                    <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
+                  </div>
+                  <div className="flex-1 text-center">
+                    <h2 className="font-bold text-sm md:text-base text-zinc-950 leading-tight">
+                      Energetic Association of Senior Citizens of Palayan City
+                    </h2>
+                    <p className="text-xs font-bold text-zinc-800 mt-0.5">Senior Citizens Center</p>
+                    <p className="text-xs font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
+                  </div>
+                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
+                    <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+
+                <div className="w-full h-[2px] mt-1 mb-4" style={{ backgroundColor: '#823b0b' }} />
+
+                {/* Document Title */}
+                <div className="text-center my-6">
+                  <h1 className="text-lg font-bold text-zinc-950 tracking-wide uppercase underline underline-offset-4">
+                    Daily Accomplishment / Task Report
+                  </h1>
+                </div>
+
+                {/* Details Meta Grid */}
+                <div className="mb-6 p-4 rounded-lg bg-zinc-50 border border-zinc-200 text-xs md:text-sm space-y-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="font-bold text-zinc-700">Employee Name: </span>
+                      <span className="font-semibold text-zinc-950 uppercase">
+                        {previewTaskLog.userInfo?.full_name ?? 'Unknown'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-zinc-700">Designation / Role: </span>
+                      <span className="text-zinc-950 capitalize">
+                        {previewTaskLog.userInfo?.role?.replace('_', ' ') ?? 'User'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="font-bold text-zinc-700">Office / Unit: </span>
+                      <span className="text-zinc-950">{previewTaskLog.officeName}</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-zinc-700">Date & Time Logged: </span>
+                      <span className="text-zinc-950">
+                        {format(new Date(previewTaskLog.logged_at), 'MMMM d, yyyy • h:mm a')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Task / Activity Section */}
+                <div className="space-y-3">
+                  <h3 className="font-bold text-sm md:text-base text-zinc-950 border-b border-zinc-300 pb-1 uppercase">
+                    Task / Activity Undertaken
+                  </h3>
+                  <div className="text-sm md:text-base text-zinc-900 leading-relaxed text-justify whitespace-pre-wrap p-2 min-h-[180px]">
+                    {previewTaskLog.custom_title || 'No task description recorded.'}
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="mt-16 pt-8 grid grid-cols-2 gap-8 text-sm md:text-base border-t border-zinc-200">
+                  <div>
+                    <p className="text-zinc-700 mb-12">Encoded / Prepared by:</p>
+                    <p className="font-bold text-zinc-950 uppercase">
+                      {previewTaskLog.userInfo?.full_name ?? 'EMPLOYEE'}
+                    </p>
+                    <p className="text-xs text-zinc-700 capitalize">
+                      {previewTaskLog.userInfo?.role?.replace('_', ' ') ?? 'Designated Staff'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-700 mb-12">Noted / Received by:</p>
+                    <p className="font-bold text-zinc-950 uppercase">OSCA / DEPARTMENT HEAD</p>
+                    <p className="text-xs text-zinc-700">Office of the Senior Citizens Affairs</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
