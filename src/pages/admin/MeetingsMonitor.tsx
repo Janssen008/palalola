@@ -38,6 +38,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   getStoredAgendas,
   getStoredMinutes,
@@ -86,8 +87,8 @@ export default function MeetingsMonitor() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'agendas' | 'minutes' | 'tasklogs'>('agendas');
 
-  // Task logs preview state
-  const [previewTaskLog, setPreviewTaskLog] = useState<any | null>(null);
+  // Task logs summary preview state
+  const [previewTaskSummary, setPreviewTaskSummary] = useState<any | null>(null);
 
   // Preview modal state
   const [previewAgenda, setPreviewAgenda] = useState<SavedAgendaRecord | null>(null);
@@ -200,7 +201,7 @@ export default function MeetingsMonitor() {
   const { data: rawTaskLogs, refetch: refetchTaskLogs } = useQuery({
     queryKey: ['admin', 'taskLogs-monitor'],
     queryFn: async () => {
-      let q = supabase.from('task_logs').select('*').order('logged_at', { ascending: false }).limit(200);
+      let q = supabase.from('task_logs').select('*').order('logged_at', { ascending: false }).limit(1000);
       return ((await q).data as any[]) ?? [];
     },
   });
@@ -217,18 +218,86 @@ export default function MeetingsMonitor() {
     return m;
   }, [taskLogsOffices]);
 
-  const filteredTaskLogs = useMemo(() => {
-    if (!rawTaskLogs) return [];
-    if (!search.trim()) return rawTaskLogs;
+  // Group task logs into comprehensive user summaries so admin can view all tasks encoded
+  const userTaskSummaries = useMemo(() => {
+    if (!rawTaskLogs || rawTaskLogs.length === 0) return [];
+
+    const summaries: any[] = [];
+
+    // 1. Consolidated Summary of ALL tasks encoded across all users
+    const allDateMap = new Map<string, any[]>();
+    rawTaskLogs.forEach((log) => {
+      const d = format(new Date(log.logged_at), 'MMMM d, yyyy');
+      if (!allDateMap.has(d)) allDateMap.set(d, []);
+      allDateMap.get(d)!.push(log);
+    });
+    const allGroupedByDate: { dateStr: string; items: any[] }[] = [];
+    allDateMap.forEach((items, dateStr) => allGroupedByDate.push({ dateStr, items }));
+
+    summaries.push({
+      id: 'all',
+      title: 'Consolidated Task Summary (All Users)',
+      userName: 'All Active Personnel / Staff',
+      userRole: 'Organization-Wide',
+      officeName: 'All Offices & Units',
+      totalTasks: rawTaskLogs.length,
+      latestDate: rawTaskLogs[0]?.logged_at || new Date().toISOString(),
+      logs: rawTaskLogs,
+      groupedByDate: allGroupedByDate,
+      isConsolidated: true,
+    });
+
+    // 2. Individual User Accomplishment Summaries
+    const userMapLogs = new Map<string, any[]>();
+    rawTaskLogs.forEach((log: any) => {
+      const uid = log.user_id || 'unknown';
+      if (!userMapLogs.has(uid)) userMapLogs.set(uid, []);
+      userMapLogs.get(uid)!.push(log);
+    });
+
+    userMapLogs.forEach((uLogs, uId) => {
+      const uInfo = tlUserMap.get(uId);
+      const offId = uLogs[0]?.office_id || uInfo?.office_id;
+      const offName = offId ? (tlOffMap.get(offId) ?? 'Unknown Office') : 'No Office';
+
+      const uDateMap = new Map<string, any[]>();
+      uLogs.forEach((log) => {
+        const d = format(new Date(log.logged_at), 'MMMM d, yyyy');
+        if (!uDateMap.has(d)) uDateMap.set(d, []);
+        uDateMap.get(d)!.push(log);
+      });
+      const uGroupedByDate: { dateStr: string; items: any[] }[] = [];
+      uDateMap.forEach((items, dateStr) => uGroupedByDate.push({ dateStr, items }));
+
+      summaries.push({
+        id: uId,
+        title: `${uInfo?.full_name ?? 'User'} • Task Summary`,
+        userName: uInfo?.full_name ?? 'Employee',
+        userRole: uInfo?.role?.replace('_', ' ') ?? 'User',
+        officeName: offName,
+        totalTasks: uLogs.length,
+        latestDate: uLogs[0]?.logged_at || new Date().toISOString(),
+        logs: uLogs,
+        groupedByDate: uGroupedByDate,
+        isConsolidated: false,
+      });
+    });
+
+    return summaries;
+  }, [rawTaskLogs, tlUserMap, tlOffMap]);
+
+  const filteredTaskSummaries = useMemo(() => {
+    if (!search.trim()) return userTaskSummaries;
     const q = search.toLowerCase();
-    return rawTaskLogs.filter((log: any) => {
-      const userName = tlUserMap.get(log.user_id)?.full_name ?? '';
+    return userTaskSummaries.filter((s) => {
       return (
-        (log.custom_title ?? '').toLowerCase().includes(q) ||
-        userName.toLowerCase().includes(q)
+        s.title.toLowerCase().includes(q) ||
+        s.userName.toLowerCase().includes(q) ||
+        s.officeName.toLowerCase().includes(q) ||
+        s.logs.some((l: any) => (l.custom_title ?? '').toLowerCase().includes(q))
       );
     });
-  }, [rawTaskLogs, search, tlUserMap]);
+  }, [userTaskSummaries, search]);
 
   // Export Agenda docx
   const handleDownloadAgenda = async (agenda: SavedAgendaRecord) => {
@@ -479,9 +548,9 @@ export default function MeetingsMonitor() {
             className="rounded-xl gap-2 flex-1 sm:flex-initial"
           >
             <ClipboardCheck className="h-4 w-4" />
-            Task Logs
+            Task Log Summaries
             <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
-              {filteredTaskLogs.length}
+              {filteredTaskSummaries.length}
             </Badge>
           </Button>
         </div>
@@ -716,95 +785,120 @@ export default function MeetingsMonitor() {
       {/* ── Task Logs Tab ──────────────────────────────────── */}
       {activeTab === 'tasklogs' && (
         <div className="space-y-4">
-          {!rawTaskLogs || filteredTaskLogs.length === 0 ? (
+          {!rawTaskLogs || filteredTaskSummaries.length === 0 ? (
             <Card className="rounded-2xl border text-center py-12">
               <ClipboardCheck className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
               <p className="text-muted-foreground font-medium">No task logs found</p>
               <p className="text-xs text-muted-foreground mt-1">
-                When users log daily tasks, they will appear here automatically.
+                When users log daily tasks, their accomplishment summaries will appear here automatically.
               </p>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredTaskLogs.map((log: any) => {
-                const userInfo = tlUserMap.get(log.user_id);
-                const officeName = log.office_id ? (tlOffMap.get(log.office_id) ?? 'Unknown Office') : 'No Office';
-                return (
-                  <Card
-                    key={log.id}
-                    className="rounded-2xl border bg-card/60 backdrop-blur shadow-sm hover:border-amber-500/40 transition-all flex flex-col justify-between"
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] text-amber-500 border-amber-500/30 bg-amber-500/10 mb-2"
-                          >
-                            Daily Task Log
-                          </Badge>
-                          <CardTitle className="text-base font-bold text-foreground line-clamp-1">
-                            {log.custom_title || '(No task title)'}
-                          </CardTitle>
-                          <CardDescription className="text-xs flex items-center gap-1.5 mt-1 flex-wrap">
-                            <Calendar className="h-3.5 w-3.5" />
-                            <span>{format(new Date(log.logged_at), 'MMM d, yyyy')}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              {userInfo?.full_name ?? 'Unknown User'}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {format(new Date(log.logged_at), 'h:mm a')}
-                            </span>
-                          </CardDescription>
-                        </div>
+              {filteredTaskSummaries.map((summary: any) => (
+                <Card
+                  key={summary.id}
+                  className={cn(
+                    "rounded-2xl border backdrop-blur shadow-sm transition-all flex flex-col justify-between",
+                    summary.isConsolidated
+                      ? "bg-gradient-to-br from-amber-500/10 via-card/80 to-card border-amber-500/40 md:col-span-2 shadow-amber-500/5"
+                      : "bg-card/60 hover:border-amber-500/40"
+                  )}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] mb-2 font-medium",
+                            summary.isConsolidated
+                              ? "text-amber-600 border-amber-500/40 bg-amber-500/15"
+                              : "text-amber-500 border-amber-500/30 bg-amber-500/10"
+                          )}
+                        >
+                          {summary.isConsolidated ? "⭐ Consolidated All-User Summary" : "Employee Task Summary"}
+                        </Badge>
+                        <CardTitle className="text-base font-bold text-foreground line-clamp-1">
+                          {summary.title}
+                        </CardTitle>
+                        <CardDescription className="text-xs flex items-center gap-1.5 mt-1 flex-wrap">
+                          <User className="h-3.5 w-3.5 text-primary" />
+                          <span className="font-semibold text-foreground">{summary.userName}</span>
+                          <span>•</span>
+                          <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span>{summary.officeName}</span>
+                          <span>•</span>
+                          <span className="font-semibold text-amber-600 dark:text-amber-400">
+                            {summary.totalTasks} {summary.totalTasks === 1 ? 'Task' : 'Tasks'} Encoded
+                          </span>
+                        </CardDescription>
+                      </div>
 
+                      {!summary.isConsolidated && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDeleteTaskLog(log.id)}
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to delete all ${summary.totalTasks} task logs for ${summary.userName}?`)) {
+                              Promise.all(summary.logs.map((l: any) => supabase.from('task_logs').delete().eq('id', l.id)))
+                                .then(() => {
+                                  toast.success('Task logs deleted for user');
+                                  refetchTaskLogs();
+                                })
+                                .catch(() => toast.error('Failed to delete'));
+                            }
+                          }}
                           className="h-8 w-8 text-muted-foreground hover:text-rose-500 rounded-lg shrink-0"
-                          title="Delete task log"
+                          title="Delete all tasks of user"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </div>
-                    </CardHeader>
+                      )}
+                    </div>
+                  </CardHeader>
 
-                    <CardContent className="space-y-3 pt-0">
-                      <div className="bg-muted/30 p-3 rounded-xl space-y-1 text-xs text-muted-foreground">
-                        <div className="flex items-center justify-between text-[11px] font-medium text-foreground pb-1 border-b border-border/50">
-                          <span className="flex items-center gap-1">
-                            <Briefcase className="h-3 w-3 text-muted-foreground" />
-                            {officeName}
+                  <CardContent className="space-y-3 pt-0">
+                    {/* Encoded Tasks Preview Snippet */}
+                    <div className="bg-muted/30 p-3 rounded-xl space-y-1.5 text-xs text-muted-foreground">
+                      <div className="text-[11px] font-semibold text-foreground pb-1 border-b border-border/50 flex items-center justify-between">
+                        <span>Latest Encoded Tasks:</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Latest: {format(new Date(summary.latestDate), 'MMM d, yyyy')}
+                        </span>
+                      </div>
+                      {summary.logs.slice(0, 3).map((log: any) => (
+                        <div key={log.id} className="flex items-start gap-1.5 text-xs">
+                          <span className="text-amber-600 font-bold leading-none mt-0.5">•</span>
+                          <span className="truncate text-foreground font-medium flex-1">
+                            {log.custom_title}
                           </span>
-                          <span className="text-[10px] text-muted-foreground capitalize">
-                            {userInfo?.role?.replace('_', ' ') ?? 'User'}
+                          <span className="text-[10px] text-muted-foreground shrink-0 font-sans">
+                            {format(new Date(log.logged_at), 'MMM d, h:mm a')}
                           </span>
                         </div>
-                        <p className="text-foreground text-xs line-clamp-3 leading-relaxed mt-1">
-                          {log.custom_title || 'No description provided.'}
+                      ))}
+                      {summary.logs.length > 3 && (
+                        <p className="text-[10px] italic text-muted-foreground/70 pl-2.5 pt-0.5">
+                          + {summary.logs.length - 3} more encoded tasks...
                         </p>
-                      </div>
+                      )}
+                    </div>
 
-                      <div className="pt-2 flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPreviewTaskLog({ ...log, userInfo, officeName })}
-                          className="rounded-xl h-8 text-xs gap-1.5 flex-1"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Preview Document
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                    <div className="pt-2 flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPreviewTaskSummary(summary)}
+                        className="rounded-xl h-8 text-xs gap-1.5 flex-1 hover:border-amber-500/50 hover:bg-amber-500/5"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-amber-500" />
+                        Preview Document
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </div>
@@ -1144,15 +1238,15 @@ export default function MeetingsMonitor() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Task Log Document Preview Dialog ────────────────── */}
-      <Dialog open={!!previewTaskLog} onOpenChange={(open) => !open && setPreviewTaskLog(null)}>
+      {/* ── Task Log Summary Document Preview Dialog ─────────── */}
+      <Dialog open={!!previewTaskSummary} onOpenChange={(open) => !open && setPreviewTaskSummary(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 md:p-6 rounded-2xl">
           <DialogHeader className="flex flex-row items-center justify-between pb-3 border-b">
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
               <ClipboardCheck className="h-5 w-5 text-amber-500" />
-              Daily Task Document Preview
+              Accomplishment Report / Task Log Summary
             </DialogTitle>
-            {previewTaskLog && (
+            {previewTaskSummary && (
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -1167,10 +1261,10 @@ export default function MeetingsMonitor() {
             )}
           </DialogHeader>
 
-          {previewTaskLog && (
+          {previewTaskSummary && (
             <div className="flex justify-center py-4 bg-muted/20 rounded-xl">
               <div
-                className="bg-white text-zinc-950 font-serif w-full max-w-[750px] min-h-[750px] p-8 md:p-12 rounded-xl shadow-lg border border-zinc-200"
+                className="bg-white text-zinc-950 font-serif w-full max-w-[750px] min-h-[850px] p-8 md:p-12 rounded-xl shadow-lg border border-zinc-200"
                 style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
               >
                 {/* Header with Seals */}
@@ -1195,7 +1289,7 @@ export default function MeetingsMonitor() {
                 {/* Document Title */}
                 <div className="text-center my-6">
                   <h1 className="text-lg font-bold text-zinc-950 tracking-wide uppercase underline underline-offset-4">
-                    Daily Accomplishment / Task Report
+                    Daily Accomplishment Report / Task Summary
                   </h1>
                 </div>
 
@@ -1203,40 +1297,69 @@ export default function MeetingsMonitor() {
                 <div className="mb-6 p-4 rounded-lg bg-zinc-50 border border-zinc-200 text-xs md:text-sm space-y-2">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <span className="font-bold text-zinc-700">Employee Name: </span>
+                      <span className="font-bold text-zinc-700">Personnel / Staff: </span>
                       <span className="font-semibold text-zinc-950 uppercase">
-                        {previewTaskLog.userInfo?.full_name ?? 'Unknown'}
+                        {previewTaskSummary.userName}
                       </span>
                     </div>
                     <div>
                       <span className="font-bold text-zinc-700">Designation / Role: </span>
                       <span className="text-zinc-950 capitalize">
-                        {previewTaskLog.userInfo?.role?.replace('_', ' ') ?? 'User'}
+                        {previewTaskSummary.userRole}
                       </span>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <span className="font-bold text-zinc-700">Office / Unit: </span>
-                      <span className="text-zinc-950">{previewTaskLog.officeName}</span>
+                      <span className="text-zinc-950">{previewTaskSummary.officeName}</span>
                     </div>
                     <div>
-                      <span className="font-bold text-zinc-700">Date & Time Logged: </span>
-                      <span className="text-zinc-950">
-                        {format(new Date(previewTaskLog.logged_at), 'MMMM d, yyyy • h:mm a')}
+                      <span className="font-bold text-zinc-700">Total Encoded Tasks: </span>
+                      <span className="text-zinc-950 font-bold">
+                        {previewTaskSummary.totalTasks} {previewTaskSummary.totalTasks === 1 ? 'Task' : 'Tasks'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Task / Activity Section */}
-                <div className="space-y-3">
+                {/* Grouped Tasks Section */}
+                <div className="space-y-4">
                   <h3 className="font-bold text-sm md:text-base text-zinc-950 border-b border-zinc-300 pb-1 uppercase">
-                    Task / Activity Undertaken
+                    All Tasks & Activities Undertaken
                   </h3>
-                  <div className="text-sm md:text-base text-zinc-900 leading-relaxed text-justify whitespace-pre-wrap p-2 min-h-[180px]">
-                    {previewTaskLog.custom_title || 'No task description recorded.'}
-                  </div>
+
+                  {previewTaskSummary.groupedByDate.map((group: any) => (
+                    <div key={group.dateStr} className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between border-b border-zinc-200 pb-1">
+                        <h4 className="font-bold text-sm text-zinc-950">
+                          {group.dateStr}
+                        </h4>
+                        <span className="text-xs text-zinc-500 font-sans">
+                          {group.items.length} {group.items.length === 1 ? 'task' : 'tasks'}
+                        </span>
+                      </div>
+
+                      <div className="pl-3 space-y-1.5 pt-1">
+                        {group.items.map((log: any) => (
+                          <div key={log.id} className="text-sm text-zinc-900 leading-relaxed flex items-start gap-2">
+                            <span className="font-bold text-zinc-700 mt-0.5">•</span>
+                            <div className="flex-1 whitespace-pre-wrap">
+                              <span className="font-medium text-zinc-950">{log.custom_title}</span>
+                              {previewTaskSummary.isConsolidated && (
+                                <span className="text-xs text-primary font-sans font-semibold ml-2">
+                                  [{tlUserMap.get(log.user_id)?.full_name ?? 'User'}]
+                                </span>
+                              )}
+                              <span className="text-xs text-zinc-500 ml-2 font-sans">
+                                ({format(new Date(log.logged_at), 'h:mm a')})
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Signatures */}
@@ -1244,16 +1367,16 @@ export default function MeetingsMonitor() {
                   <div>
                     <p className="text-zinc-700 mb-12">Encoded / Prepared by:</p>
                     <p className="font-bold text-zinc-950 uppercase">
-                      {previewTaskLog.userInfo?.full_name ?? 'EMPLOYEE'}
+                      {previewTaskSummary.userName}
                     </p>
                     <p className="text-xs text-zinc-700 capitalize">
-                      {previewTaskLog.userInfo?.role?.replace('_', ' ') ?? 'Designated Staff'}
+                      {previewTaskSummary.userRole}
                     </p>
                   </div>
                   <div>
                     <p className="text-zinc-700 mb-12">Noted / Received by:</p>
-                    <p className="font-bold text-zinc-950 uppercase">OSCA / DEPARTMENT HEAD</p>
-                    <p className="text-xs text-zinc-700">Office of the Senior Citizens Affairs</p>
+                    <p className="font-bold text-zinc-950 uppercase">NELIA V. TRINIDAD</p>
+                    <p className="text-xs text-zinc-700">OSCA Chairperson / OIC</p>
                   </div>
                 </div>
               </div>

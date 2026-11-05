@@ -45,7 +45,23 @@ export default function TaskSummary() {
   const [selectedPeriod, setSelectedPeriod] = useState<
     "first_half" | "second_half" | "full"
   >("first_half");
+  const [selectedTargetUser, setSelectedTargetUser] = useState<string>("all");
   const [copied, setCopied] = useState(false);
+
+  const { data: allProfiles } = useQuery({
+    queryKey: ["allProfiles-taskSummary"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("user_id, full_name, role, office_id").order("full_name");
+      return (data as any[]) ?? [];
+    },
+    enabled: !!profile && (profile.role === 'admin' || profile.role === 'department_head' || profile.role === 'oic'),
+  });
+
+  const profileMap = useMemo(() => {
+    const m = new Map<string, any>();
+    allProfiles?.forEach((p) => m.set(p.user_id, p));
+    return m;
+  }, [allProfiles]);
 
   const formattedRange = useMemo(() => {
     if (selectedMonths.length === 0) return "No months selected";
@@ -79,6 +95,7 @@ export default function TaskSummary() {
       selectedMonths,
       selectedYear,
       selectedPeriod,
+      selectedTargetUser,
     ],
     queryFn: async () => {
       if (selectedMonths.length === 0) return [];
@@ -89,13 +106,22 @@ export default function TaskSummary() {
       const start = new Date(selectedYear, minMonth, 1);
       const end = new Date(selectedYear, maxMonth + 1, 0, 23, 59, 59, 999);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("task_logs")
         .select("*")
-        .eq("user_id", user!.id)
         .gte("logged_at", start.toISOString())
         .lte("logged_at", end.toISOString())
         .order("logged_at", { ascending: true });
+
+      if (profile?.role === 'admin' || profile?.role === 'department_head' || profile?.role === 'oic') {
+        if (selectedTargetUser !== 'all') {
+          query = query.eq("user_id", selectedTargetUser);
+        }
+      } else {
+        query = query.eq("user_id", user!.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       
@@ -202,7 +228,10 @@ export default function TaskSummary() {
         if (dayLogs && dayLogs.length > 0) {
           text += `${dateStr}:\n`;
           dayLogs.forEach((log) => {
-            text += `  • ${log.custom_title}\n`;
+            const userTag = (selectedTargetUser === 'all' && (profile?.role === 'admin' || profile?.role === 'department_head' || profile?.role === 'oic'))
+              ? ` [${profileMap.get(log.user_id)?.full_name ?? 'User'}]`
+              : '';
+            text += `  • ${log.custom_title}${userTag}\n`;
           });
           text += "\n";
         } else if (!isOSCA && (dayOfWeekStr === "Saturday" || dayOfWeekStr === "Sunday")) {
@@ -587,6 +616,25 @@ export default function TaskSummary() {
                   <SelectItem value="full">Full Month</SelectItem>
                 </SelectContent>
               </Select>
+
+              {(profile?.role === 'admin' || profile?.role === 'department_head' || profile?.role === 'oic') && (
+                <Select
+                  value={selectedTargetUser}
+                  onValueChange={setSelectedTargetUser}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users (All Encoded Tasks)</SelectItem>
+                    {allProfiles?.map((p: any) => (
+                      <SelectItem key={p.user_id} value={p.user_id}>
+                        {p.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               <Select
                 value={selectedTemplate}

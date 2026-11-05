@@ -52,6 +52,7 @@ const router = createBrowserRouter([
       { path: 'users', element: <UsersPage /> },
       { path: 'dept-heads', element: <DepartmentHeadsPage /> },
       { path: 'logs', element: <TaskLogsPage /> },
+      { path: 'summary', element: <TaskSummary /> },
       { path: 'meetings', element: <MeetingsMonitor /> },
     ],
   },
