@@ -69,9 +69,15 @@ export function saveSignatories(items: SignatoryItem[]): void {
  * Generates an OpenXML 2-column table for Word export (.docx)
  * containing only the signatories where enabled === true.
  */
-export function generateDocxSignatoriesTableXml(signatories: SignatoryItem[]): string {
+export function generateDocxSignatoriesTableXml(
+  signatories: SignatoryItem[],
+  fontFamily: string = 'Times New Roman',
+  align: 'left' | 'center' = 'left'
+): string {
   const active = signatories.filter((s) => s.enabled && s.name && s.name.trim().length > 0);
   if (active.length === 0) return '';
+
+  const jcXml = align === 'center' ? '<w:jc w:val="center"/>' : '';
 
   let rowsXml = '';
   // Pair active signatories into 2 columns per row
@@ -87,16 +93,17 @@ export function generateDocxSignatoriesTableXml(signatories: SignatoryItem[]): s
         </w:tcPr>
         <w:p>
           <w:pPr>
+            ${jcXml}
             <w:spacing w:before="120" w:after="280"/>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
           </w:pPr>
           <w:r>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
@@ -105,18 +112,21 @@ export function generateDocxSignatoriesTableXml(signatories: SignatoryItem[]): s
         </w:p>
         <w:p>
           <w:pPr>
+            ${jcXml}
             <w:spacing w:before="0" w:after="40"/>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:b/>
+              <w:u w:val="single"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
           </w:pPr>
           <w:r>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:b/>
+              <w:u w:val="single"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
@@ -125,16 +135,17 @@ export function generateDocxSignatoriesTableXml(signatories: SignatoryItem[]): s
         </w:p>
         <w:p>
           <w:pPr>
+            ${jcXml}
             <w:spacing w:before="0" w:after="200"/>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
           </w:pPr>
           <w:r>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
@@ -153,16 +164,17 @@ export function generateDocxSignatoriesTableXml(signatories: SignatoryItem[]): s
         </w:tcPr>
         <w:p>
           <w:pPr>
+            ${jcXml}
             <w:spacing w:before="120" w:after="280"/>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
           </w:pPr>
           <w:r>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
@@ -171,18 +183,21 @@ export function generateDocxSignatoriesTableXml(signatories: SignatoryItem[]): s
         </w:p>
         <w:p>
           <w:pPr>
+            ${jcXml}
             <w:spacing w:before="0" w:after="40"/>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:b/>
+              <w:u w:val="single"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
           </w:pPr>
           <w:r>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:b/>
+              <w:u w:val="single"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
@@ -191,16 +206,17 @@ export function generateDocxSignatoriesTableXml(signatories: SignatoryItem[]): s
         </w:p>
         <w:p>
           <w:pPr>
+            ${jcXml}
             <w:spacing w:before="0" w:after="200"/>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>
           </w:pPr>
           <w:r>
             <w:rPr>
-              <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+              <w:rFonts w:ascii="${fontFamily}" w:hAnsi="${fontFamily}" w:cs="${fontFamily}"/>
               <w:sz w:val="24"/>
               <w:szCs w:val="24"/>
             </w:rPr>

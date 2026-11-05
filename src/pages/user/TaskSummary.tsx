@@ -11,6 +11,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Copy, CheckCircle2, Filter, Download } from "lucide-react";
+import {
+  FileText,
+  Copy,
+  CheckCircle2,
+  Filter,
+  Download,
+  RotateCcw,
+  Plus,
+  Trash2,
+  FileCheck2,
+  Printer,
+} from "lucide-react";
 import { format, subWeeks, subMonths, startOfDay } from "date-fns";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
@@ -31,6 +43,15 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  type SignatoryItem,
+  DEFAULT_SIGNATORIES,
+  getSavedSignatories,
+  saveSignatories,
+  generateDocxSignatoriesTableXml,
+} from "@/lib/oscaSignatories";
 
 export default function TaskSummary() {
   const { user, profile } = useAuth();
@@ -47,6 +68,78 @@ export default function TaskSummary() {
   >("first_half");
   const [selectedTargetUser, setSelectedTargetUser] = useState<string>("all");
   const [copied, setCopied] = useState(false);
+
+  const [signatories, setSignatories] = useState<SignatoryItem[]>(getSavedSignatories);
+
+  const handleToggleSignatory = (id: string, enabled: boolean) => {
+    const updated = signatories.map((s) => (s.id === id ? { ...s, enabled } : s));
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleUpdateSignatory = (id: string, field: 'label' | 'name' | 'role', val: string) => {
+    const updated = signatories.map((s) => (s.id === id ? { ...s, [field]: val } : s));
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleAddSignatory = () => {
+    const newSig: SignatoryItem = {
+      id: 'sig-' + Date.now(),
+      enabled: true,
+      label: 'Signatory / Official:',
+      name: '',
+      role: 'OSCA Officer',
+    };
+    const updated = [...signatories, newSig];
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleRemoveSignatory = (id: string) => {
+    const updated = signatories.filter((s) => s.id !== id);
+    setSignatories(updated);
+    saveSignatories(updated);
+  };
+
+  const handleResetSignatories = () => {
+    const currentUserName = user?.user_metadata?.full_name || profile?.full_name || "VENAFLOR P. DIESTRO";
+    const currentUserRole = profile?.position_title || (currentUserName.toLowerCase().includes("diestro") ? "Secretary, Senior Citizens Association" : "Secretary");
+
+    const standard: SignatoryItem[] = [
+      {
+        id: 'sig-secretary',
+        enabled: true,
+        label: 'Prepared by:',
+        name: currentUserName.toUpperCase(),
+        role: currentUserRole,
+      },
+      {
+        id: 'sig-vp',
+        enabled: true,
+        label: 'Attested by / Vice President:',
+        name: 'DANILO DC. VALDEZ',
+        role: 'Vice President, Senior Citizens Association',
+      },
+      {
+        id: 'sig-treasurer',
+        enabled: true,
+        label: 'Certified by / Treasurer:',
+        name: 'ROSENNIE S. PRONTO',
+        role: 'Treasurer, Senior Citizens Association',
+      },
+      {
+        id: 'sig-oic',
+        enabled: true,
+        label: 'Approved by / OIC:',
+        name: 'NELIA V. TRINIDAD',
+        role: 'OSCA Chairperson / OIC',
+      },
+    ];
+    setSignatories(standard);
+    saveSignatories(standard);
+    toast.info('Signatories reset to standard OSCA template');
+  };
 
   const { data: allProfiles } = useQuery({
     queryKey: ["allProfiles-taskSummary"],
@@ -442,13 +535,25 @@ export default function TaskSummary() {
         }
       });
 
-      // 5. Build name and role label for approver (Name on top, Role underneath)
-      const approverName = isOSCA ? "NELIA V. TRINIDAD" : (deptHead?.full_name || "NELIA V. TRINIDAD");
-      const approverTitle = isOSCA
+      // 5. Build name and role label for approver & signatories
+      const activeSigs = signatories.filter((s) => s.enabled && s.name && s.name.trim().length > 0);
+      const firstActive = activeSigs[0];
+      const lastActive = activeSigs.length > 1 ? activeSigs[activeSigs.length - 1] : activeSigs[0];
+
+      const userNameStr = firstActive?.name || user?.user_metadata?.full_name || profile?.full_name || "User";
+      const userRoleStr = firstActive?.role || profile?.position_title || (userNameStr.toLowerCase().includes("diestro") ? "Secretary, Senior Citizens Association" : "Secretary");
+
+      const defaultApproverName = isOSCA ? "NELIA V. TRINIDAD" : (deptHead?.full_name || "NELIA V. TRINIDAD");
+      const defaultApproverTitle = isOSCA
         ? "OSCA Chairperson / OIC"
         : deptHead?.role === "oic"
           ? "Officer In Charge"
           : "Department Head";
+
+      const finalApproverName = lastActive && lastActive !== firstActive ? lastActive.name : defaultApproverName;
+      const finalApproverRole = lastActive && lastActive !== firstActive ? lastActive.role : defaultApproverTitle;
+
+      const sigTableXml = generateDocxSignatoriesTableXml(signatories, 'Century Gothic', 'center');
 
       // Helper function to Title Case (often referred to as camel case by non-programmers)
       const toTitleCase = (str: string) => {
@@ -485,30 +590,42 @@ export default function TaskSummary() {
         // Root level variables (for flat-structure templates like MTC)
         office: formattedOffice,
         officeAcronym: officeAcronym,
-        role: profile?.position_title || "",
-        name: user?.user_metadata?.full_name || profile?.full_name || "User",
-        user: user?.user_metadata?.full_name || profile?.full_name || "User",
+        role: userRoleStr,
+        name: userNameStr,
+        user: userNameStr,
         dateRange: formattedRange,
         tasks: firstPage.tasks,
-        headOic: approverName,
-        officer: approverTitle,
+        headOic: finalApproverName,
+        officer: finalApproverRole,
+        signatoriesSection: sigTableXml,
         // Pages array for nested-structure templates (other-dept / ICT style)
         pages: pagesPayload.map((page, index) => ({
-          name: user?.user_metadata?.full_name || profile?.full_name || "User",
-          user: user?.user_metadata?.full_name || profile?.full_name || "User",
-          role: profile?.position_title || "",
+          name: userNameStr,
+          user: userNameStr,
+          role: userRoleStr,
           dateRange: page.dateRange,
           tasks: page.tasks,
           office: formattedOffice,
           officeAcronym: officeAcronym,
-          headOic: approverName,
-          officer: approverTitle,
+          headOic: finalApproverName,
+          officer: finalApproverRole,
+          signatoriesSection: sigTableXml,
           pageBreak:
             index < pagesPayload.length - 1
               ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
               : "",
         })),
       });
+
+      // Enforce 8.5 x 13 in (12240 x 18720 dxa) Legal size
+      const docXmlFile = doc.getZip().file('word/document.xml');
+      if (docXmlFile) {
+        let docXml = docXmlFile.asText();
+        if (docXml.includes('<w:pgSz')) {
+          docXml = docXml.replace(/<w:pgSz[^>]*\/>/g, '<w:pgSz w:w="12240" w:h="18720"/>');
+          doc.getZip().file('word/document.xml', docXml);
+        }
+      }
 
       // 6. Output and save
       const out = doc.getZip().generate({
@@ -678,12 +795,169 @@ export default function TaskSummary() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Generated Report</CardTitle>
-          <CardDescription>Preview of your task summary.</CardDescription>
+      {/* ── Signatories & Approvals Card ────────────────────────── */}
+      <Card className="rounded-2xl border bg-card/60 backdrop-blur shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <FileCheck2 className="h-4 w-4 text-primary" />
+                Signatories &amp; Approvals
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Tick (check) which officers/members will appear in the accomplishment report signatory output.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResetSignatories}
+                className="rounded-xl text-xs h-8"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                Reset Standard
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleAddSignatory}
+                className="rounded-xl text-xs h-8"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Signatory
+              </Button>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {signatories.map((sig) => (
+              <div
+                key={sig.id}
+                className={cn(
+                  "p-3.5 rounded-xl border transition-all space-y-3",
+                  sig.enabled
+                    ? "bg-card border-primary/40 shadow-sm ring-1 ring-primary/20"
+                    : "bg-muted/20 border-dashed border-muted text-muted-foreground opacity-60"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={sig.enabled}
+                      onChange={(e) => handleToggleSignatory(sig.id, e.target.checked)}
+                      className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary cursor-pointer"
+                    />
+                    <span className={cn("text-xs font-bold uppercase tracking-wider", sig.enabled ? "text-primary" : "text-muted-foreground")}>
+                      {sig.enabled ? '✓ Included in Output' : '✕ Hidden from Output'}
+                    </span>
+                  </label>
+
+                  {signatories.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemoveSignatory(sig.id)}
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      title="Remove signatory"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground">Signatory Header / Label</Label>
+                  <Input
+                    value={sig.label}
+                    onChange={(e) => handleUpdateSignatory(sig.id, 'label', e.target.value)}
+                    placeholder="e.g. Prepared by: or Attested by:"
+                    className="rounded-lg h-8 text-xs font-semibold"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground">Officer Full Name</Label>
+                  <Input
+                    value={sig.name}
+                    onChange={(e) => handleUpdateSignatory(sig.id, 'name', e.target.value)}
+                    placeholder="e.g. VENAFLOR P. DIESTRO"
+                    className="rounded-lg h-8 text-xs font-bold uppercase"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground">Position Title / Office</Label>
+                  <Input
+                    value={sig.role}
+                    onChange={(e) => handleUpdateSignatory(sig.id, 'role', e.target.value)}
+                    placeholder="e.g. Secretary, Senior Citizens Association"
+                    className="rounded-lg h-8 text-xs"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Accomplishment Report Preview Card ──────────────────── */}
+      <Card className="rounded-2xl border shadow-sm">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b">
+          <div>
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Accomplishment Report Preview
+            </CardTitle>
+            <CardDescription>
+              Formal preview of your daily accomplishment report with selected signatories.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              className="rounded-xl h-8 text-xs gap-1.5"
+            >
+              {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copied' : 'Copy Text'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              className="rounded-xl h-8 text-xs gap-1.5"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleDownloadWord("tabular")}
+              disabled={!logs || logs.length === 0 || downloading}
+              className="rounded-xl h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export Tabular
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleDownloadWord("column")}
+              disabled={!logs || logs.length === 0 || downloading}
+              className="rounded-xl h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export Column
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
           {isLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-6 w-1/3" />
@@ -697,27 +971,116 @@ export default function TaskSummary() {
               </div>
             </div>
           ) : logs && logs.length > 0 ? (
-            <div className="bg-muted/50 rounded-xl p-6 font-mono text-sm whitespace-pre-wrap border shadow-inner max-h-[600px] overflow-y-auto">
-              {activeTemplate === "osca" && (
-                <div className="bg-white text-zinc-900 p-6 rounded-lg mb-6 shadow-sm border font-serif text-center select-none">
-                  <div className="flex items-center justify-between gap-4 mb-2">
-                    <img src="/palayan_seal.png" alt="Palayan Seal" className="w-16 h-16 object-contain" />
-                    <div className="flex-1">
-                      <p className="font-bold text-base tracking-wide text-zinc-950">
-                        Energetic Association of Senior Citizens of Palayan City
-                      </p>
-                      <p className="text-xs font-bold text-zinc-800">Senior Citizens Center</p>
-                      <p className="text-xs font-semibold text-zinc-600">Barangay Singalat, Palayan City</p>
-                    </div>
-                    <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-16 h-16 object-contain" />
+            <div className="flex justify-center py-4 bg-muted/20 rounded-xl">
+              <div
+                id="printable-area"
+                className="bg-white text-zinc-950 font-serif w-full max-w-[780px] min-h-[900px] p-8 md:p-12 rounded-xl shadow-lg border border-zinc-200 print:shadow-none print:border-none print:p-0 print:w-full"
+                style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
+              >
+                {/* Header with Official Seals */}
+                <div className="grid grid-cols-[104px_1fr_104px] items-center gap-4 pb-1">
+                  <div className="w-[104px] h-[104px] shrink-0 flex items-center justify-center">
+                    <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
-                  <div className="h-0.5 bg-[#823b0b] w-full my-3" />
-                  <h2 className="font-bold text-base text-zinc-950 uppercase tracking-wider font-serif">
-                    ACCOMPLISHMENT REPORT
-                  </h2>
+                  <div className="flex-1 text-center px-2">
+                    <h2 className="font-bold text-base md:text-lg tracking-wide text-zinc-950 leading-tight font-serif">
+                      Energetic Association of Senior Citizens of Palayan City
+                    </h2>
+                    <p className="text-xs md:text-sm font-bold text-zinc-800 mt-1">Senior Citizens Center</p>
+                    <p className="text-xs md:text-sm font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
+                  </div>
+                  <div className="w-[104px] h-[104px] shrink-0 flex items-center justify-center">
+                    <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-full h-full object-contain" />
+                  </div>
                 </div>
-              )}
-              {summaryText}
+
+                <div className="w-full h-[2px] mt-2 mb-6" style={{ backgroundColor: '#823b0b' }} />
+
+                {/* Title */}
+                <div className="text-center my-6">
+                  <h1 className="text-lg font-bold text-zinc-950 tracking-wide uppercase underline underline-offset-4 font-serif">
+                    Daily Accomplishment Report
+                  </h1>
+                  <p className="text-xs md:text-sm font-semibold text-zinc-700 mt-1">
+                    Period: {formattedRange}
+                  </p>
+                </div>
+
+                {/* Tasks content grouped by date */}
+                <div className="space-y-5 text-sm leading-relaxed text-zinc-900">
+                  {selectedMonths.map((month) => {
+                    let startD = 1;
+                    let endD = new Date(selectedYear, month + 1, 0).getDate();
+                    if (selectedPeriod === "first_half") endD = 15;
+                    if (selectedPeriod === "second_half") startD = 16;
+
+                    const dateNodes = [];
+                    for (let d = startD; d <= endD; d++) {
+                      const dateObj = new Date(selectedYear, month, d);
+                      const dateStr = format(dateObj, "MMMM d, yyyy");
+                      const dayOfWeekStr = format(dateObj, "EEEE");
+                      const dayLogs = groupedLogs[dateStr];
+
+                      if (dayLogs && dayLogs.length > 0) {
+                        dateNodes.push(
+                          <div key={dateStr} className="space-y-1.5 border-b border-zinc-100 pb-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-zinc-950">{dateStr}</span>
+                              <span className="text-xs text-zinc-500 font-sans">{dayOfWeekStr}</span>
+                            </div>
+                            <ul className="pl-4 space-y-1 list-disc text-zinc-800">
+                              {dayLogs.map((log) => {
+                                const userTag = (selectedTargetUser === 'all' && (profile?.role === 'admin' || profile?.role === 'department_head' || profile?.role === 'oic'))
+                                  ? ` [${profileMap.get(log.user_id)?.full_name ?? 'Staff'}]`
+                                  : '';
+                                return (
+                                  <li key={log.id} className="text-sm">
+                                    <span className="font-medium text-zinc-950">{log.custom_title}</span>
+                                    {userTag && <span className="text-xs text-primary font-sans font-semibold ml-1">{userTag}</span>}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        );
+                      } else if (!isOSCA && (dayOfWeekStr === "Saturday" || dayOfWeekStr === "Sunday")) {
+                        dateNodes.push(
+                          <div key={dateStr} className="flex items-center justify-between text-xs text-zinc-500 border-b border-zinc-100 py-1">
+                            <span className="font-semibold">{dateStr}</span>
+                            <span>{dayOfWeekStr}</span>
+                          </div>
+                        );
+                      }
+                    }
+
+                    return (
+                      <div key={month} className="space-y-3">
+                        {selectedMonths.length > 1 && (
+                          <h3 className="font-bold text-sm text-zinc-800 uppercase tracking-wider border-b-2 border-zinc-300 pb-1">
+                            {format(new Date(selectedYear, month, 1), "MMMM yyyy")}
+                          </h3>
+                        )}
+                        {dateNodes}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Signatories Section - Displays only ticked signatories */}
+                <div className="mt-14 pt-8 grid grid-cols-1 sm:grid-cols-2 gap-8 text-sm md:text-base border-t border-zinc-300 print:border-t-zinc-400">
+                  {signatories
+                    .filter((s) => s.enabled && s.name && s.name.trim().length > 0)
+                    .map((sig) => (
+                      <div key={sig.id} className="space-y-1">
+                        <p className="text-zinc-700 mb-8 font-medium">{sig.label}</p>
+                        <p className="font-bold text-zinc-950 uppercase tracking-wide underline underline-offset-2">
+                          {sig.name}
+                        </p>
+                        <p className="text-xs md:text-sm text-zinc-700">{sig.role}</p>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="text-center py-12">

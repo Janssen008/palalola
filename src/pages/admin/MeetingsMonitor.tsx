@@ -52,7 +52,7 @@ import PizZip from 'pizzip';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
 import { injectPhotosToDocx } from '@/lib/docxPhotoHelper';
-import { generateDocxSignatoriesTableXml, DEFAULT_SIGNATORIES } from '@/lib/oscaSignatories';
+import { generateDocxSignatoriesTableXml, DEFAULT_SIGNATORIES, getSavedSignatories, type SignatoryItem } from '@/lib/oscaSignatories';
 
 function toRoman(num: number): string {
   const romanMap: [number, string][] = [
@@ -114,6 +114,23 @@ export default function MeetingsMonitor() {
 
   // Task logs summary preview state
   const [previewTaskSummary, setPreviewTaskSummary] = useState<any | null>(null);
+  const [monitorSignatories, setMonitorSignatories] = useState<SignatoryItem[]>(getSavedSignatories);
+
+  const handleOpenTaskSummary = (summary: any) => {
+    const baseSigs = getSavedSignatories();
+    const updatedSigs = baseSigs.map((s, idx) => {
+      if (idx === 0) {
+        return {
+          ...s,
+          name: summary.userName.toUpperCase(),
+          role: summary.userRole,
+        };
+      }
+      return s;
+    });
+    setMonitorSignatories(updatedSigs);
+    setPreviewTaskSummary(summary);
+  };
 
   // Preview modal state
   const [previewAgenda, setPreviewAgenda] = useState<SavedAgendaRecord | null>(null);
@@ -451,23 +468,36 @@ export default function MeetingsMonitor() {
       });
 
       const latestMonthStr = format(new Date(summary.latestDate), 'MMMM yyyy');
+
+      const sigXml = generateDocxSignatoriesTableXml(monitorSignatories, 'Century Gothic', 'center');
+      const activeSigs = monitorSignatories.filter((s) => s.enabled && s.name && s.name.trim().length > 0);
+      const firstActive = activeSigs[0];
+      const lastActive = activeSigs.length > 1 ? activeSigs[activeSigs.length - 1] : activeSigs[0];
+
+      const signerName = firstActive?.name || summary.userName;
+      const signerRole = firstActive?.role || summary.userRole;
+      const finalApproverName = lastActive && lastActive !== firstActive ? lastActive.name : 'NELIA V. TRINIDAD';
+      const finalApproverRole = lastActive && lastActive !== firstActive ? lastActive.role : 'OSCA Chairperson / OIC';
+
       const pagesPayload = [
         {
           dateRange: `Month of ${latestMonthStr}`,
           tasks: monthTasks,
-          user: summary.userName,
-          role: summary.userRole,
-          headOic: 'NELIA V. TRINIDAD',
-          officer: 'OSCA Chairperson / OIC',
+          user: signerName,
+          role: signerRole,
+          headOic: finalApproverName,
+          officer: finalApproverRole,
+          signatoriesSection: sigXml,
         },
       ];
 
       doc.render({
         pages: pagesPayload,
-        user: summary.userName,
-        role: summary.userRole,
-        headOic: 'NELIA V. TRINIDAD',
-        officer: 'OSCA Chairperson / OIC',
+        user: signerName,
+        role: signerRole,
+        headOic: finalApproverName,
+        officer: finalApproverRole,
+        signatoriesSection: sigXml,
       });
 
       // Enforce 8.5 x 13 in (12240 x 18720 dxa) Legal size
@@ -987,7 +1017,7 @@ export default function MeetingsMonitor() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setPreviewTaskSummary(summary)}
+                        onClick={() => handleOpenTaskSummary(summary)}
                         className="rounded-xl h-8 text-xs gap-1.5 flex-1 hover:border-amber-500/50 hover:bg-amber-500/5"
                       >
                         <Eye className="h-3.5 w-3.5 text-amber-500" />
@@ -1009,8 +1039,8 @@ export default function MeetingsMonitor() {
             </div>
           )}
         </div>
-      )}
-
+      )}
+
       {/* ── Agenda Document Preview Dialog ──────────────────── */}
       <Dialog open={!!previewAgenda} onOpenChange={(open) => !open && setPreviewAgenda(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 md:p-6 rounded-2xl">
@@ -1378,6 +1408,46 @@ export default function MeetingsMonitor() {
           </DialogHeader>
 
           {previewTaskSummary && (
+            <div className="space-y-4">
+              {/* Signatory Selection Controls */}
+              <div className="p-3 bg-muted/40 rounded-xl border border-border/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-foreground flex items-center gap-1.5">
+                    <FileCheck2 className="h-4 w-4 text-amber-600" />
+                    Signatories Approval Selection:
+                  </span>
+                  <span className="text-muted-foreground hidden sm:inline">
+                    (Tick to include or hide from output)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {monitorSignatories.map((sig) => (
+                    <label
+                      key={sig.id}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none",
+                        sig.enabled
+                          ? "bg-amber-500/10 border-amber-500/40 text-amber-900 dark:text-amber-200"
+                          : "bg-muted/30 border-muted text-muted-foreground line-through opacity-60"
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={sig.enabled}
+                        onChange={(e) => {
+                          const updated = monitorSignatories.map((s) =>
+                            s.id === sig.id ? { ...s, enabled: e.target.checked } : s
+                          );
+                          setMonitorSignatories(updated);
+                        }}
+                        className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                      />
+                      <span>{sig.label.replace(/:/g, '')}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
             <div className="flex justify-center py-4 bg-muted/20 rounded-xl">
               <div
                 className="bg-white text-zinc-950 font-serif w-full max-w-[750px] min-h-[850px] p-8 md:p-12 rounded-xl shadow-lg border border-zinc-200"
@@ -1478,28 +1548,26 @@ export default function MeetingsMonitor() {
                   ))}
                 </div>
 
-                {/* Signatures */}
-                <div className="mt-16 pt-8 grid grid-cols-2 gap-8 text-sm md:text-base border-t border-zinc-200">
-                  <div>
-                    <p className="text-zinc-700 mb-12">Encoded / Prepared by:</p>
-                    <p className="font-bold text-zinc-950 uppercase">
-                      {previewTaskSummary.userName}
-                    </p>
-                    <p className="text-xs text-zinc-700">
-                      {previewTaskSummary.userRole}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-zinc-700 mb-12">Noted / Received by:</p>
-                    <p className="font-bold text-zinc-950 uppercase">NELIA V. TRINIDAD</p>
-                    <p className="text-xs text-zinc-700">OSCA Chairperson / OIC</p>
-                  </div>
+                {/* Signatures - Displays only ticked signatories */}
+                <div className="mt-16 pt-8 grid grid-cols-1 sm:grid-cols-2 gap-8 text-sm md:text-base border-t border-zinc-200">
+                  {monitorSignatories
+                    .filter((s) => s.enabled && s.name && s.name.trim().length > 0)
+                    .map((sig) => (
+                      <div key={sig.id} className="space-y-1">
+                        <p className="text-zinc-700 mb-8 font-medium">{sig.label}</p>
+                        <p className="font-bold text-zinc-950 uppercase underline underline-offset-2">
+                          {sig.name}
+                        </p>
+                        <p className="text-xs text-zinc-700">{sig.role}</p>
+                      </div>
+                    ))}
                 </div>
               </div>
             </div>
+            </div>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog>
     </div>
   );
 }
