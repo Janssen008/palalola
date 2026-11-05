@@ -395,6 +395,75 @@ export default function MeetingsMonitor() {
     }
   };
 
+  // Export Task Log Summary docx (Legal 8.5 x 13 in)
+  const handleDownloadTaskWord = async (summary: any) => {
+    try {
+      const response = await fetch('/osca-template.docx');
+      if (!response.ok) throw new Error('Could not fetch task template');
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+
+      const zip = new PizZip(arrayBuffer);
+      const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+
+      // Build month tasks from groupedByDate
+      const monthTasks: any[] = [];
+      summary.groupedByDate.forEach((g: any) => {
+        const dateStr = g.dateStr;
+        const description = g.items
+          .map((log: any) => {
+            const userTag = summary.isConsolidated
+              ? `[${tlUserMap.get(log.user_id)?.full_name ?? 'Staff'}] `
+              : '';
+            return `• ${userTag}${log.custom_title}`;
+          })
+          .join('\n');
+
+        monthTasks.push({
+          date: dateStr,
+          description: description,
+        });
+      });
+
+      const latestMonthStr = format(new Date(summary.latestDate), 'MMMM yyyy');
+      const pagesPayload = [
+        {
+          dateRange: `Month of ${latestMonthStr}`,
+          tasks: monthTasks,
+        },
+      ];
+
+      doc.render({
+        pages: pagesPayload,
+        user: summary.userName,
+        role: summary.userRole,
+        headOic: 'OIC / OSCA Head',
+        officer: 'NELIA V. TRINIDAD',
+      });
+
+      // Enforce 8.5 x 13 in (12240 x 18720 dxa) Legal size
+      const docXmlFile = doc.getZip().file('word/document.xml');
+      if (docXmlFile) {
+        let docXml = docXmlFile.asText();
+        if (docXml.includes('<w:pgSz')) {
+          docXml = docXml.replace(/<w:pgSz[^>]*\/>/g, '<w:pgSz w:w="12240" w:h="18720"/>');
+          doc.getZip().file('word/document.xml', docXml);
+        }
+      }
+
+      const out = doc.getZip().generate({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+
+      const safeName = summary.userName.replace(/[^a-zA-Z0-9]/g, '_');
+      saveAs(out, `OSCA_Task_Summary_${safeName}_${format(new Date(), 'yyyyMMdd')}.docx`);
+      toast.success('Task Log Word document (8.5 x 13) exported!');
+    } catch (err: any) {
+      toast.error('Failed to export task log Word document: ' + (err.message || ''));
+    }
+  };
+
   // Delete Agenda
   const handleDeleteAgenda = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this meeting agenda record?')) {
@@ -895,6 +964,15 @@ export default function MeetingsMonitor() {
                         <Eye className="h-3.5 w-3.5 text-amber-500" />
                         Preview Document
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleDownloadTaskWord(summary)}
+                        className="rounded-xl h-8 text-xs gap-1.5 flex-1 bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Export Word
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -1256,6 +1334,15 @@ export default function MeetingsMonitor() {
                 >
                   <Printer className="h-3.5 w-3.5" />
                   Print
+                </Button>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => handleDownloadTaskWord(previewTaskSummary)}
+                  className="rounded-xl h-8 text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export Word
                 </Button>
               </div>
             )}
