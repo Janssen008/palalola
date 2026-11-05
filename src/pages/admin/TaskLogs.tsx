@@ -18,6 +18,31 @@ import { Input } from '@/components/ui/input';
 import { SearchableSelect } from "@/components/SearchableSelect";
 
 const PAGE_SIZE = 15;
+function getUserOfficialRole(uInfo: any): string {
+  if (!uInfo) return 'Secretary';
+  const pos = uInfo.position_title;
+  if (pos && typeof pos === 'string' && pos.trim() && pos.toLowerCase() !== 'user') {
+    return pos.trim();
+  }
+  const name = (uInfo.full_name || '').toLowerCase();
+  if (name.includes('diestro') || name.includes('venaflor')) {
+    return 'Secretary';
+  }
+  if (name.includes('valdez') || name.includes('danilo')) {
+    return 'Vice President';
+  }
+  if (name.includes('pronto') || name.includes('rosennie')) {
+    return 'Treasurer';
+  }
+  if (name.includes('trinidad') || name.includes('nelia')) {
+    return 'OSCA Chairperson / OIC';
+  }
+  if (uInfo.role && uInfo.role !== 'user') {
+    return uInfo.role.replace('_', ' ');
+  }
+  return 'Secretary';
+}
+
 
 export default function TaskLogsPage() {
   const [selectedUser, setSelectedUser] = useState<string>('all');
@@ -31,7 +56,7 @@ export default function TaskLogsPage() {
   const { data: users, isLoading: loadingUsers } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('user_id, full_name, role, office_id').order('full_name');
+      const { data } = await supabase.from('profiles').select('user_id, full_name, role, office_id, position_title').order('full_name');
       return (data as any[]) ?? [];
     },
   });
@@ -213,7 +238,7 @@ export default function TaskLogsPage() {
                   <div className="truncate">
                     <div className="text-sm truncate">{user.full_name}</div>
                     <div className={cn("text-[10px] uppercase tracking-wider truncate", selectedUser === user.user_id ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                      {user.role?.replace('_', ' ')} {user.office_id && offMap.get(user.office_id) ? `• ${offMap.get(user.office_id)}` : ''}
+                      {getUserOfficialRole(user)} {user.office_id && offMap.get(user.office_id) ? `• ${offMap.get(user.office_id)}` : ''}
                     </div>
                   </div>
                 </button>
@@ -377,7 +402,7 @@ export default function TaskLogsPage() {
                     <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Employee</p>
                     <p className="text-sm font-semibold mt-0.5">{userMap.get(previewLog.user_id) ?? 'Unknown'}</p>
                     <p className="text-xs text-muted-foreground capitalize">
-                      {users?.find((u: any) => u.user_id === previewLog.user_id)?.role?.replace('_', ' ') ?? ''}
+                      {getUserOfficialRole(users?.find((u: any) => u.user_id === previewLog.user_id))}
                     </p>
                   </div>
                 </div>

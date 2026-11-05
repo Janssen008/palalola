@@ -80,6 +80,31 @@ function toRoman(num: number): string {
   return result || 'I';
 }
 
+function getUserOfficialRole(uInfo: any): string {
+  if (!uInfo) return 'Secretary';
+  const pos = uInfo.position_title;
+  if (pos && typeof pos === 'string' && pos.trim() && pos.toLowerCase() !== 'user') {
+    return pos.trim();
+  }
+  const name = (uInfo.full_name || '').toLowerCase();
+  if (name.includes('diestro') || name.includes('venaflor')) {
+    return 'Secretary, Senior Citizens Association';
+  }
+  if (name.includes('valdez') || name.includes('danilo')) {
+    return 'Vice President, Senior Citizens Association';
+  }
+  if (name.includes('pronto') || name.includes('rosennie')) {
+    return 'Treasurer, Senior Citizens Association';
+  }
+  if (name.includes('trinidad') || name.includes('nelia')) {
+    return 'OSCA Chairperson / OIC';
+  }
+  if (uInfo.role && uInfo.role !== 'user') {
+    return uInfo.role.replace('_', ' ');
+  }
+  return 'Secretary';
+}
+
 export default function MeetingsMonitor() {
   const [agendas, setAgendas] = useState<SavedAgendaRecord[]>([]);
   const [minutes, setMinutes] = useState<MinutesRecord[]>([]);
@@ -185,7 +210,7 @@ export default function MeetingsMonitor() {
   const { data: taskLogsUsers } = useQuery({
     queryKey: ['admin', 'taskLogs-users'],
     queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('user_id, full_name, role, office_id');
+      const { data } = await supabase.from('profiles').select('user_id, full_name, role, office_id, position_title');
       return (data as any[]) ?? [];
     },
   });
@@ -273,7 +298,7 @@ export default function MeetingsMonitor() {
         id: uId,
         title: `${uInfo?.full_name ?? 'User'} • Task Summary`,
         userName: uInfo?.full_name ?? 'Employee',
-        userRole: uInfo?.role?.replace('_', ' ') ?? 'User',
+        userRole: getUserOfficialRole(uInfo),
         officeName: offName,
         totalTasks: uLogs.length,
         latestDate: uLogs[0]?.logged_at || new Date().toISOString(),
@@ -1355,23 +1380,23 @@ export default function MeetingsMonitor() {
                 style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
               >
                 {/* Header with Seals */}
-                <div className="grid grid-cols-[88px_1fr_88px] items-center gap-4 pb-1">
-                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
+                <div className="grid grid-cols-[104px_1fr_104px] items-center gap-4 pb-1">
+                  <div className="w-[104px] h-[104px] shrink-0 flex items-center justify-center">
                     <img src="/palayan_seal.png" alt="Seal" className="w-full h-full object-contain" />
                   </div>
-                  <div className="flex-1 text-center">
-                    <h2 className="font-bold text-sm md:text-base text-zinc-950 leading-tight">
+                  <div className="flex-1 text-center px-2">
+                    <h2 className="font-bold text-base md:text-lg tracking-wide text-zinc-950 leading-tight font-serif">
                       Energetic Association of Senior Citizens of Palayan City
                     </h2>
-                    <p className="text-xs font-bold text-zinc-800 mt-0.5">Senior Citizens Center</p>
-                    <p className="text-xs font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
+                    <p className="text-xs md:text-sm font-bold text-zinc-800 mt-1">Senior Citizens Center</p>
+                    <p className="text-xs md:text-sm font-semibold text-zinc-700">Barangay Singalat, Palayan City</p>
                   </div>
-                  <div className="w-[88px] h-[88px] shrink-0 flex items-center justify-center">
+                  <div className="w-[104px] h-[104px] shrink-0 flex items-center justify-center">
                     <img src="/osca_logo.jpg" alt="OSCA Logo" className="w-full h-full object-contain" />
                   </div>
                 </div>
 
-                <div className="w-full h-[2px] mt-1 mb-4" style={{ backgroundColor: '#823b0b' }} />
+                <div className="w-full h-[2px] mt-2 mb-6" style={{ backgroundColor: '#823b0b' }} />
 
                 {/* Document Title */}
                 <div className="text-center my-6">
@@ -1456,7 +1481,7 @@ export default function MeetingsMonitor() {
                     <p className="font-bold text-zinc-950 uppercase">
                       {previewTaskSummary.userName}
                     </p>
-                    <p className="text-xs text-zinc-700 capitalize">
+                    <p className="text-xs text-zinc-700">
                       {previewTaskSummary.userRole}
                     </p>
                   </div>
