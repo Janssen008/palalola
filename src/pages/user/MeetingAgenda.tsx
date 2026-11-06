@@ -28,7 +28,6 @@ import {
   Settings2,
   Image as ImageIcon,
   Upload,
-  Sparkles,
   Camera,
   FileCheck2,
 } from 'lucide-react';
@@ -40,7 +39,7 @@ import { format } from 'date-fns';
 import { getStoredAgendas, saveStoredAgenda } from '@/lib/meetingStorage';
 import { injectPhotosToDocx, type DocxPhoto } from '@/lib/docxPhotoHelper';
 import { type SignatoryItem, DEFAULT_SIGNATORIES, getSavedSignatories, saveSignatories, generateDocxSignatoriesTableXml } from '@/lib/oscaSignatories';
-import { compressImageFile, sliceGridImage } from '@/lib/imageCompression';
+import { compressImageFile } from '@/lib/imageCompression';
 
 export interface SubAgendaItem {
   id: string;
@@ -496,54 +495,6 @@ export default function MeetingAgenda() {
     } finally {
       setLoadingPhotos(false);
       e.target.value = '';
-    }
-  };
-
-  const handleLoadSamplePhotos = async () => {
-    setLoadingPhotos(true);
-    try {
-      const slices = await sliceGridImage('/sample_meeting_grid.jpg');
-      const sampleCaptions = [
-        'Presiding Officers & Meeting Call to Order',
-        'Federation Officers & Attendees Session',
-        'Senior Citizen Presidents Discussion',
-        'Attendance Review & Agenda Proceeding',
-      ];
-      const samplePhotos: AgendaPhoto[] = slices.map((item, idx) => ({
-        id: `sample-photo-${Date.now()}-${idx}`,
-        dataUrl: item.dataUrl,
-        caption: sampleCaptions[idx] || `Photo ${idx + 1}`,
-        width: item.width,
-        height: item.height,
-      }));
-      setPhotos(samplePhotos);
-      setShowPhotosInReport(true);
-      setActiveTab('preview');
-      toast.success('Loaded 4 sample meeting photos (2x2 grid)!');
-
-      // Automatically sync to saved history and admin monitor
-      const newRecord: SavedAgendaRecord = {
-        id: `agenda-${Date.now()}`,
-        savedAt: new Date().toISOString(),
-        date: meetingDate,
-        title: meetingTitle,
-        sections,
-        signatories,
-        photos: samplePhotos,
-      };
-      saveStoredAgenda(newRecord).then((updated) => {
-        setSavedHistory(updated);
-      }).catch(() => {});
-
-      setTimeout(() => {
-        const el = document.getElementById('photo-documentation-preview');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 150);
-    } catch (err: any) {
-      console.error('Failed to load sample photos:', err);
-      toast.error('Could not load sample photos');
-    } finally {
-      setLoadingPhotos(false);
     }
   };
 
@@ -1018,17 +969,7 @@ export default function MeetingAgenda() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={loadingPhotos}
-                  onClick={handleLoadSamplePhotos}
-                  className="rounded-xl h-8 text-xs gap-1.5 border-dashed hover:border-primary"
-                  title="Load the 4 meeting photos from the official template"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                  <span>Load Sample Photos</span>
-                </Button>
+
 
                 <label className="cursor-pointer inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm gap-1.5">
                   <Upload className="h-3.5 w-3.5" />
@@ -1050,7 +991,7 @@ export default function MeetingAgenda() {
                   <ImageIcon className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
                   <p className="text-sm font-semibold text-foreground">No photos attached yet</p>
                   <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                    Upload your meeting photos or click &quot;Load Sample Photos&quot; to test with the 4 meeting photos shown in the official OSCA report.
+                    Upload your meeting photos to display a formal 2x2 photo documentation grid in the report.
                   </p>
                 </div>
               ) : (
@@ -1283,17 +1224,7 @@ export default function MeetingAgenda() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={loadingPhotos}
-                onClick={handleLoadSamplePhotos}
-                className="rounded-xl h-8 text-xs gap-1.5 border-dashed hover:border-purple-500"
-                title="Load the 4 meeting photos from the official template"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                <span>Load Sample Photos</span>
-              </Button>
+
 
               <label className="cursor-pointer inline-flex items-center justify-center rounded-xl h-8 px-3 text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm gap-1.5">
                 <Upload className="h-3.5 w-3.5" />
@@ -1315,20 +1246,8 @@ export default function MeetingAgenda() {
                 <ImageIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
                 <p className="text-sm font-semibold text-foreground">No photos attached yet</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                  Click &quot;Load Sample Photos&quot; to test with the 4 photos from the official OSCA meeting, or upload your own meeting photos.
+                  Upload your meeting photos to appear in this agenda report.
                 </p>
-                <div className="flex items-center justify-center gap-3 mt-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleLoadSamplePhotos}
-                    disabled={loadingPhotos}
-                    className="rounded-xl h-8 text-xs gap-1.5"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                    Load Sample Photos
-                  </Button>
-                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1561,16 +1480,7 @@ export default function MeetingAgenda() {
                       onChange={handleUploadPhotos}
                     />
                   </label>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleLoadSamplePhotos}
-                    disabled={loadingPhotos}
-                    className="rounded-xl h-8 text-xs gap-1.5 font-sans bg-white hover:bg-zinc-100 border-zinc-300"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                    <span>Load Sample Photos (Template Guide)</span>
-                  </Button>
+
                 </div>
               </div>
             ) : !showPhotosInReport ? (
